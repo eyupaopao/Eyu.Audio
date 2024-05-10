@@ -1,11 +1,7 @@
 ﻿using NAudio.Wave.SampleProviders;
-using NWaves.Audio;
+using NWaves.Operations;
+using NWaves.Signals;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Security.Cryptography.X509Certificates;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Eyu.Audio.Utils;
 
@@ -52,7 +48,7 @@ public static class AudioEffect
         }
         return newPatch;
     }
-    public static float[] ToSample(this byte[] sourceBuffer, int offset, int sourceBufferCount)
+    public static float[] Wave16ToSample(this byte[] sourceBuffer, int offset, int sourceBufferCount)
     {
         int targetBufferCount = sourceBufferCount / 2;
         float[] targetBuffer = new float[targetBufferCount];
@@ -62,6 +58,71 @@ public static class AudioEffect
             targetBuffer[outIndex++] = BitConverter.ToInt16(sourceBuffer, n) / 32768f;
         }
         return targetBuffer;
+    }
+
+    //
+    // 摘要:
+    //     Conversion to 16 bit and clipping
+    public unsafe static void Convert32To16(byte[] destBuffer, byte[] source, int sourceCount)
+    {
+
+        fixed (byte* ptr = &destBuffer[0])
+        {
+            fixed (byte* ptr3 = &source[0])
+            {
+                short* ptr2 = (short*)ptr;
+                float* ptr4 = (float*)ptr3;
+                int num = sourceCount / 4;
+                for (int i = 0; i < num; i++)
+                {
+                    float num2 = ptr4[i] * 1f;
+                    if (num2 > 1f)
+                    {
+                        ptr2[i] = short.MaxValue;
+                    }
+                    else if (num2 < -1f)
+                    {
+                        ptr2[i] = short.MinValue;
+                    }
+                    else
+                    {
+                        ptr2[i] = (short)(num2 * 32767f);
+                    }
+                }
+            }
+        }
+    }
+
+
+
+    public static int ReSample(ref float[] sourceSample, int offset, int count, int sourceSampleRate, int destSampleRate)
+    {
+        if (sourceSample == null || sourceSample.Length < (offset + count)) return 0;
+        if (count % 2 != 0) count--;
+        var sampleCount = count / 2;
+        var left = new float[sampleCount];
+        var right = new float[sampleCount];
+        for (int i = 0; i < sampleCount; i++)
+        {
+            left[i] = sourceSample[i * 2];
+            right[i] = sourceSample[i * 2 + 1];
+        }
+        var leftSingal = new DiscreteSignal(sourceSampleRate, left);
+        var rightSingal = new DiscreteSignal(sourceSampleRate, right);
+
+        var leftReSample = Operation.Resample(leftSingal, destSampleRate);
+        var rightReSample = Operation.Resample(rightSingal, destSampleRate);
+        var newLength = leftReSample.Length * 2;
+        if (newLength > sourceSample.Length)
+        {
+            sourceSample = new float[newLength];
+        }
+        for (int i = 0; i < leftReSample.Length; i++)
+        {
+            sourceSample[i * 2] = leftReSample[i];
+            sourceSample[i * 2 + 1] = rightReSample[i];
+        }
+        return newLength;
     }
 
     private static float[] maxSamples;
@@ -96,34 +157,34 @@ public static class AudioEffect
         }
 
 
-
-
-
-        ////单声道复制为双声道
-        //void ChannelCopy(ref byte[] buffer)
-        //{
-        //    if (channels == 2)
-        //    {
-        //        for (int i = 0; i < buffer.Length; i += 4)
-        //        {
-        //            buffer[i + 2] = buffer[i];
-        //            buffer[i + 3] = buffer[i + 1];
-        //        }
-        //    }
-        //    if (channels == 1)
-        //    {
-        //        byte[] newbuffer = new byte[buffer.Length * 2];
-        //        for (int i = 0; i < buffer.Length; i += 2)
-        //        {
-        //            newbuffer[i * 2] = buffer[i];
-        //            newbuffer[i * 2 + 2] = buffer[i];
-        //            newbuffer[i * 2 + 1] = buffer[i + 1];
-        //            newbuffer[i * 2 + 3] = buffer[i + 1];
-        //        }
-        //        buffer = newbuffer;
-        //    }
-        //}
     }
+
+
+
+    ////单声道复制为双声道
+    //void ChannelCopy(ref byte[] buffer)
+    //{
+    //    if (channels == 2)
+    //    {
+    //        for (int i = 0; i < buffer.Length; i += 4)
+    //        {
+    //            buffer[i + 2] = buffer[i];
+    //            buffer[i + 3] = buffer[i + 1];
+    //        }
+    //    }
+    //    if (channels == 1)
+    //    {
+    //        byte[] newbuffer = new byte[buffer.Length * 2];
+    //        for (int i = 0; i < buffer.Length; i += 2)
+    //        {
+    //            newbuffer[i * 2] = buffer[i];
+    //            newbuffer[i * 2 + 2] = buffer[i];
+    //            newbuffer[i * 2 + 1] = buffer[i + 1];
+    //            newbuffer[i * 2 + 3] = buffer[i + 1];
+    //        }
+    //        buffer = newbuffer;
+    //    }
+    //}
 
     #region pcm音量
 
@@ -195,7 +256,7 @@ public class StreamVolumeHelper
     {
         try
         {
-            var sample = buffer.ToSample(0, count);
+            var sample = buffer.Wave16ToSample(0, count);
 
             SampleStream?.Invoke(sample);
             WaveFormCalculator(sample, sample.Length);
