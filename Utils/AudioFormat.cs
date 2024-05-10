@@ -4,11 +4,18 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Eyu.Audio.Utils
+namespace Eyu.Audio.Utils;
+
+public enum AudioFormat
 {
-    public enum AudioFormat
-    {
-        Pcm = 0,
-        Mp3 = 1,
-    }
+    Pcm = 0,
+    Mp3 = 1,
+}
+
+public enum AudioExtension
+{
+    mp3,
+    wav,
+    aiff,
+    none
 }
