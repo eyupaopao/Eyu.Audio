@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 
 namespace Eyu.Audio.Alsa
 {
-    static class InteropAlsa
+    public static class InteropAlsa
     {
         const string AlsaLibrary = "libasound";
 
@@ -11,7 +11,7 @@ namespace Eyu.Audio.Alsa
         public static extern nint snd_strerror(int errnum);
 
         [DllImport(AlsaLibrary)]
-        public static extern int snd_pcm_open(ref nint pcm, string name, snd_pcm_stream_t stream, int mode);
+        internal static extern int snd_pcm_open(ref nint pcm, string name, snd_pcm_stream_t stream, int mode);
 
         [DllImport(AlsaLibrary)]
         public static extern int snd_pcm_start(nint pcm);
@@ -41,7 +41,7 @@ namespace Eyu.Audio.Alsa
         public static extern int snd_pcm_readi(nint pcm, nint buffer, ulong size);
 
         [DllImport(AlsaLibrary)]
-        public static extern int snd_pcm_set_params(nint pcm, snd_pcm_format_t format, snd_pcm_access_t access, uint channels, uint rate, int soft_resample, uint latency);
+        internal static extern int snd_pcm_set_params(nint pcm, snd_pcm_format_t format, snd_pcm_access_t access, uint channels, uint rate, int soft_resample, uint latency);
 
         [DllImport(AlsaLibrary)]
         public static extern int snd_pcm_hw_params_malloc(ref nint @params);
@@ -50,10 +50,10 @@ namespace Eyu.Audio.Alsa
         public static extern int snd_pcm_hw_params_any(nint pcm, nint @params);
 
         [DllImport(AlsaLibrary)]
-        public static extern int snd_pcm_hw_params_set_access(nint pcm, nint @params, snd_pcm_access_t access);
+        internal static extern int snd_pcm_hw_params_set_access(nint pcm, nint @params, snd_pcm_access_t access);
 
         [DllImport(AlsaLibrary)]
-        public static extern int snd_pcm_hw_params_set_format(nint pcm, nint @params, snd_pcm_format_t val);
+        internal static extern int snd_pcm_hw_params_set_format(nint pcm, nint @params, snd_pcm_format_t val);
 
         [DllImport(AlsaLibrary)]
         public static extern int snd_pcm_hw_params_set_channels(nint pcm, nint @params, uint val);
@@ -98,10 +98,10 @@ namespace Eyu.Audio.Alsa
         public static extern void snd_mixer_selem_id_alloca(nint ptr);
 
         [DllImport(AlsaLibrary)]
-        public static extern unsafe int snd_mixer_selem_get_playback_volume(nint elem, snd_mixer_selem_channel_id channel, long* value);
+        internal static extern unsafe int snd_mixer_selem_get_playback_volume(nint elem, snd_mixer_selem_channel_id channel, long* value);
 
         [DllImport(AlsaLibrary)]
-        public static extern int snd_mixer_selem_set_playback_volume(nint elem, snd_mixer_selem_channel_id channel, long value);
+        internal static extern int snd_mixer_selem_set_playback_volume(nint elem, snd_mixer_selem_channel_id channel, long value);
 
         [DllImport(AlsaLibrary)]
         public static extern int snd_mixer_selem_set_playback_volume_all(nint elem, long value);
@@ -116,10 +116,10 @@ namespace Eyu.Audio.Alsa
         public static extern int snd_mixer_selem_set_playback_volume_range(nint elem, long min, long max);
 
         [DllImport(AlsaLibrary)]
-        public static extern unsafe int snd_mixer_selem_get_capture_volume(nint elem, snd_mixer_selem_channel_id channel, long* value);
+        internal static extern unsafe int snd_mixer_selem_get_capture_volume(nint elem, snd_mixer_selem_channel_id channel, long* value);
 
         [DllImport(AlsaLibrary)]
-        public static extern int snd_mixer_selem_set_capture_volume(nint elem, snd_mixer_selem_channel_id channel, long value);
+        internal static extern int snd_mixer_selem_set_capture_volume(nint elem, snd_mixer_selem_channel_id channel, long value);
 
         [DllImport(AlsaLibrary)]
         public static extern int snd_mixer_selem_set_capture_volume_all(nint elem, long value);

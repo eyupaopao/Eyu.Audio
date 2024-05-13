@@ -1,4 +1,5 @@
-﻿using System;
+﻿using NAudio.Wave;
+using System;
 using System.IO;
 using System.Threading;
 
@@ -36,10 +37,15 @@ public interface ISoundDevice : IDisposable
     /// </summary>
     bool RecordingMute { get; set; }
 
+    void Play(IWaveProvider waveProvider);
+
+    void Play(IWaveProvider waveProvider, CancellationToken cancellationToken);
+
     /// <summary>
     /// play a wav file on the playback device
     /// </summary>
     /// <param name="wavPath">path to wav file</param>
+
     void Play(string wavPath);
 
     /// <summary>

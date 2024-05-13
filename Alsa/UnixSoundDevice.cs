@@ -1,4 +1,5 @@
-﻿using System;
+﻿using NAudio.Wave;
+using System;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -46,6 +47,49 @@ class UnixSoundDevice : ISoundDevice
         Settings = settings;
     }
 
+    public void Play(IWaveProvider waveProvider)
+    {
+        if (_wasDisposed)
+            throw new ObjectDisposedException(nameof(UnixSoundDevice));
+
+        Play(waveProvider, CancellationToken.None);
+    }
+    public void Play(IWaveProvider waveProvider, CancellationToken cancellationToken)
+    {
+        Task.Run(() =>
+        {
+            if (_wasDisposed)
+                throw new ObjectDisposedException(nameof(UnixSoundDevice));
+
+            var parameter = new nint();
+            var dir = 0;
+            var header = WavHeader.Build((uint)waveProvider.WaveFormat.SampleRate, (ushort)waveProvider.WaveFormat.Channels, (ushort)waveProvider.WaveFormat.BitsPerSample);
+
+            OpenPlaybackPcm();
+            PcmInitialize(_playbackPcm, header, ref parameter, ref dir);
+            WriteStream(waveProvider, header, ref parameter, ref dir, cancellationToken);
+            ClosePlaybackPcm();
+        });
+    }
+
+    unsafe void WriteStream(IWaveProvider wavStream, WavHeader header, ref nint @params, ref int dir, CancellationToken cancellationToken)
+    {
+        ulong frames;
+
+        fixed (int* dirP = &dir)
+            ThrowErrorMessage(InteropAlsa.snd_pcm_hw_params_get_period_size(@params, &frames, dirP), ExceptionMessages.CanNotGetPeriodSize);
+
+        var bufferSize = frames * header.BlockAlign;
+        var readBuffer = new byte[(int)bufferSize];
+
+        fixed (byte* buffer = readBuffer)
+        {
+            while (!_wasDisposed && !cancellationToken.IsCancellationRequested && wavStream.Read(readBuffer, 0, readBuffer.Length) != 0)
+            {
+                ThrowErrorMessage(InteropAlsa.snd_pcm_writei(_playbackPcm, (nint)buffer, frames), ExceptionMessages.CanNotWriteToDevice);
+            }
+        }
+    }
     public void Play(string wavPath)
     {
         if (_wasDisposed)
@@ -395,4 +439,5 @@ class UnixSoundDevice : ISoundDevice
         var errorMsg = Marshal.PtrToStringAnsi(InteropAlsa.snd_strerror(errorNum));
         throw new AlsaDeviceException($"{message}. Error {errorNum}. {errorMsg}.");
     }
+
 }
