@@ -3,9 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.9.34714.143
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Eyu.Audio", "Eyu.Audio.csproj", "{5AB44298-4683-4B88-95F7-E81CC8CB4A68}"
-EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Sample", "Sample\Sample.csproj", "{3E9D59C0-5999-43F3-B7E9-3A6901A3F1AD}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Eyu.Audio", "Eyu.Audio\Eyu.Audio.csproj", "{19B4602F-4958-4745-B2AB-E7B25CD6D81D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -13,14 +13,14 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{5AB44298-4683-4B88-95F7-E81CC8CB4A68}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{5AB44298-4683-4B88-95F7-E81CC8CB4A68}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{5AB44298-4683-4B88-95F7-E81CC8CB4A68}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{5AB44298-4683-4B88-95F7-E81CC8CB4A68}.Release|Any CPU.Build.0 = Release|Any CPU
 		{3E9D59C0-5999-43F3-B7E9-3A6901A3F1AD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{3E9D59C0-5999-43F3-B7E9-3A6901A3F1AD}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3E9D59C0-5999-43F3-B7E9-3A6901A3F1AD}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3E9D59C0-5999-43F3-B7E9-3A6901A3F1AD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{19B4602F-4958-4745-B2AB-E7B25CD6D81D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{19B4602F-4958-4745-B2AB-E7B25CD6D81D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{19B4602F-4958-4745-B2AB-E7B25CD6D81D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{19B4602F-4958-4745-B2AB-E7B25CD6D81D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
