@@ -47,13 +47,7 @@ class UnixSoundDevice : ISoundDevice
         Settings = settings;
     }
 
-    public void Play(IWaveProvider waveProvider)
-    {
-        if (_wasDisposed)
-            throw new ObjectDisposedException(nameof(UnixSoundDevice));
 
-        Play(waveProvider, CancellationToken.None);
-    }
     public void Play(IWaveProvider waveProvider, CancellationToken cancellationToken)
     {
         Task.Run(() =>
@@ -74,6 +68,7 @@ class UnixSoundDevice : ISoundDevice
 
     unsafe void WriteStream(IWaveProvider wavStream, WavHeader header, ref nint @params, ref int dir, CancellationToken cancellationToken)
     {
+        PlaybackState = PlaybackState.Playing;
         ulong frames;
 
         fixed (int* dirP = &dir)
@@ -84,12 +79,47 @@ class UnixSoundDevice : ISoundDevice
 
         fixed (byte* buffer = readBuffer)
         {
-            while (!_wasDisposed && !cancellationToken.IsCancellationRequested && wavStream.Read(readBuffer, 0, readBuffer.Length) != 0)
+            while (!_wasDisposed && !cancellationToken.IsCancellationRequested)
             {
+                if (PlaybackState == PlaybackState.Stopped)
+                {
+                    Dispose();
+                    break;
+                }
+                else if (PlaybackState == PlaybackState.Paused)
+                {
+                    continue;
+                }
+                if (wavStream.Read(readBuffer, 0, readBuffer.Length) == 0)
+                {
+                    Thread.Sleep(1);
+                    continue;
+                }
                 ThrowErrorMessage(InteropAlsa.snd_pcm_writei(_playbackPcm, (nint)buffer, frames), ExceptionMessages.CanNotWriteToDevice);
             }
+            PlaybackState = PlaybackState.Stopped;
+            Console.WriteLine("play end");
         }
     }
+
+    public PlaybackState PlaybackState
+    {
+        get; private set;
+    }
+    public void Pause()
+    {
+        PlaybackState = PlaybackState.Paused;
+    }
+    public void Stop()
+    {
+        PlaybackState = PlaybackState.Stopped;
+    }
+
+    public void Resume()
+    {
+        PlaybackState = PlaybackState.Playing;
+    }
+
     public void Play(string wavPath)
     {
         if (_wasDisposed)
@@ -263,8 +293,7 @@ class UnixSoundDevice : ISoundDevice
         ThrowErrorMessage(InteropAlsa.snd_pcm_hw_params_any(pcm, @params), ExceptionMessages.CanNotFillParameters);
         ThrowErrorMessage(InteropAlsa.snd_pcm_hw_params_set_access(pcm, @params, snd_pcm_access_t.SND_PCM_ACCESS_RW_INTERLEAVED), ExceptionMessages.CanNotSetAccessMode);
 
-        var formatResult = (header.BitsPerSample / 8) switch
-        {
+        var formatResult = (header.BitsPerSample / 8) switch {
             1 => InteropAlsa.snd_pcm_hw_params_set_format(pcm, @params, snd_pcm_format_t.SND_PCM_FORMAT_U8),
             2 => InteropAlsa.snd_pcm_hw_params_set_format(pcm, @params, snd_pcm_format_t.SND_PCM_FORMAT_S16_LE),
             3 => InteropAlsa.snd_pcm_hw_params_set_format(pcm, @params, snd_pcm_format_t.SND_PCM_FORMAT_S24_LE),

@@ -36,9 +36,12 @@ public interface ISoundDevice : IDisposable
     /// mute / unmute the recording device or get the current state
     /// </summary>
     bool RecordingMute { get; set; }
+    PlaybackState PlaybackState
+    {
+        get;
+    }
 
-    void Play(IWaveProvider waveProvider);
-
+    void Pause();
     void Play(IWaveProvider waveProvider, CancellationToken cancellationToken);
 
     /// <summary>
@@ -95,4 +98,6 @@ public interface ISoundDevice : IDisposable
     /// <param name="onDataAvailable">callback action called if new audio data is available</param>
     /// <param name="cancellationToken">token to cancel recording</param>
     void Record(Action<byte[]> onDataAvailable, CancellationToken cancellationToken);
+    void Resume();
+    void Stop();
 }
