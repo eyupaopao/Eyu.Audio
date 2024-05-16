@@ -27,6 +27,7 @@ static class ExceptionMessages
     public const string CanNotAllocateParameters = "Alsa Error: Can not allocate parameters object";
     public const string CanNotFillParameters = "Alsa Error: Can not fill parameters object";
     public const string CanNotSetAccessMode = "Alsa Error: Can not set access mode";
+    public const string CanNotPause = "Alsa Error: Can not pause pcm";
     public const string BitsPerSampleError = "Alsa Error: Can not set bits per sample";
     public const string CanNotSetFormat = "Alsa Error: Can not set format";
     public const string CanNotSetChannel = "Alsa Error: Can not set channel";

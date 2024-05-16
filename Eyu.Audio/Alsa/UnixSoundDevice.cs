@@ -50,6 +50,7 @@ class UnixSoundDevice : ISoundDevice
 
     public void Play(IWaveProvider waveProvider, CancellationToken cancellationToken)
     {
+        Console.WriteLine("start play");
         Task.Run(() =>
         {
             if (_wasDisposed)
@@ -59,9 +60,13 @@ class UnixSoundDevice : ISoundDevice
             var dir = 0;
             var header = WavHeader.Build((uint)waveProvider.WaveFormat.SampleRate, (ushort)waveProvider.WaveFormat.Channels, (ushort)waveProvider.WaveFormat.BitsPerSample);
 
+            Console.WriteLine("start play open");
             OpenPlaybackPcm();
+            Console.WriteLine("start init");
             PcmInitialize(_playbackPcm, header, ref parameter, ref dir);
+            Console.WriteLine("start play write");
             WriteStream(waveProvider, header, ref parameter, ref dir, cancellationToken);
+            Console.WriteLine("start close");
             ClosePlaybackPcm();
         });
     }
@@ -76,30 +81,54 @@ class UnixSoundDevice : ISoundDevice
 
         var bufferSize = frames * header.BlockAlign;
         var readBuffer = new byte[(int)bufferSize];
+        IntPtr buffer = Marshal.AllocHGlobal((int)bufferSize);
 
-        fixed (byte* buffer = readBuffer)
+        Console.WriteLine("start play while");
+        bool started = false;
+        int writeCount = 0;
+        while (!_wasDisposed && !cancellationToken.IsCancellationRequested)
         {
-            while (!_wasDisposed && !cancellationToken.IsCancellationRequested)
+            if (PlaybackState == PlaybackState.Stopped)
             {
-                if (PlaybackState == PlaybackState.Stopped)
-                {
-                    Dispose();
-                    break;
-                }
-                else if (PlaybackState == PlaybackState.Paused)
-                {
-                    continue;
-                }
-                if (wavStream.Read(readBuffer, 0, readBuffer.Length) == 0)
-                {
-                    Thread.Sleep(1);
-                    continue;
-                }
-                ThrowErrorMessage(InteropAlsa.snd_pcm_writei(_playbackPcm, (nint)buffer, frames), ExceptionMessages.CanNotWriteToDevice);
+                Dispose();
+                break;
             }
-            PlaybackState = PlaybackState.Stopped;
-            Console.WriteLine("play end");
+            else if (PlaybackState == PlaybackState.Paused)
+            {
+                Console.WriteLine("start play pause");
+                Thread.Sleep(1);
+                continue;
+            }
+            int read = wavStream.Read(readBuffer, 0, readBuffer.Length);
+            if (read == 0)
+            {
+                Console.WriteLine("start play read 0");
+                Thread.Sleep(1);
+                continue;
+            }
+
+            Marshal.Copy(readBuffer, 0, buffer, (int)bufferSize);
+
+            //Console.WriteLine("start play write");
+            ThrowErrorMessage(InteropAlsa.snd_pcm_writei(_playbackPcm, (nint)buffer, (ulong)(read / header.BlockAlign)), ExceptionMessages.CanNotWriteToDevice);
+            InteropAlsa.snd_pcm_start(_playbackPcm);
+            //Thread.Sleep(1);
+            //if (!started)
+            //{
+            //    writeCount++;
+            //    if (writeCount == 10)
+            //    {
+            //       
+            //        started = true;
+            //    }
+            //}
+
+            //Console.WriteLine("start play write 1");
         }
+        PlaybackState = PlaybackState.Stopped;
+        Console.WriteLine("play end");
+
+        Marshal.FreeHGlobal(buffer);
     }
 
     public PlaybackState PlaybackState
@@ -108,7 +137,10 @@ class UnixSoundDevice : ISoundDevice
     }
     public void Pause()
     {
+        if (PlaybackState == PlaybackState.Paused)
+            return;
         PlaybackState = PlaybackState.Paused;
+        InteropAlsa.snd_pcm_pause(_playbackPcm, 1);
     }
     public void Stop()
     {
@@ -117,6 +149,9 @@ class UnixSoundDevice : ISoundDevice
 
     public void Resume()
     {
+        if (PlaybackState == PlaybackState.Playing)
+            return;
+        InteropAlsa.snd_pcm_resume(_playbackPcm);
         PlaybackState = PlaybackState.Playing;
     }
 
@@ -306,6 +341,9 @@ class UnixSoundDevice : ISoundDevice
         var val = header.SampleRate;
         fixed (int* dirP = &dir)
             ThrowErrorMessage(InteropAlsa.snd_pcm_hw_params_set_rate_near(pcm, @params, &val, dirP), ExceptionMessages.CanNotSetRate);
+
+        //uint bufferSize = (uint)(header.BlockAlign * 50);
+        //InteropAlsa.snd_pcm_hw_params_set_buffer_size_near(pcm, @params, new(&bufferSize));
 
         ThrowErrorMessage(InteropAlsa.snd_pcm_hw_params(pcm, @params), ExceptionMessages.CanNotSetHwParams);
     }
