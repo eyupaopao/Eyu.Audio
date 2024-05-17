@@ -5,50 +5,41 @@ using System.Threading;
 
 namespace Eyu.Audio.Recorder;
 
-public class AlsaRecorder : IAudioRecorder
+public class AlsaRecorder : IWaveIn
 {
     private ISoundDevice alsaDevice;
 
     public WaveFormat WaveFormat
     {
-        get;
+        get; set;
     }
 
     public event EventHandler<WaveInEventArgs> DataAvailable;
     public event EventHandler<StoppedEventArgs> RecordingStopped;
 
 
-    public AlsaRecorder(WaveFormat waveFormat)
+
+    public void StartRecording()
     {
-        WaveFormat = waveFormat;
-        alsaDevice = AlsaDeviceBuilder.Create(new SoundDeviceSettings()
-        {
+        alsaDevice = AlsaDeviceBuilder.Create(new SoundDeviceSettings() {
             RecordingBitsPerSample = (ushort)WaveFormat.BitsPerSample,
             RecordingChannels = (ushort)WaveFormat.Channels,
             RecordingSampleRate = (ushort)WaveFormat.SampleRate,
         });
-    }
-
-    CancellationTokenSource cts;
-
-    public void StartRecord()
-    {
-        cts = new CancellationTokenSource();
-
-
         alsaDevice.Record((buffer) =>
         {
             DataAvailable?.Invoke(this, new WaveInEventArgs(buffer, buffer.Length));
         }, CancellationToken.None);
     }
-    public void StopRecord()
+    public void StopRecording()
     {
-        cts.Cancel();
+        alsaDevice?.Stop();
+        alsaDevice?.Dispose();
     }
 
     public void Dispose()
     {
-        cts?.Cancel();
+        StopRecording();
     }
 
 

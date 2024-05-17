@@ -2,29 +2,49 @@
 using Eyu.Audio;
 
 using Eyu.Audio.Reader;
+using Eyu.Audio.Recorder;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
 
 
-var file = "";
-if (args.Length == 0)
-    file = "D:\\User\\Music\\F.I.R\\飞儿乐团 - 我们的爱.mp3";
-else file = args[0];
-var audioReader = new Eyu.Audio.Reader.AudioFileReader(file);
-if (audioReader == null || !audioReader.CanRead) return;
-var sampleToWave16 = new SampleToWaveProvider16(audioReader);
-var sdlout = new SDLOut();
-sdlout.Init(sampleToWave16);
-sdlout.Play();
+//SDLOut.GetDeviceNames(1);
+//Console.ReadLine();
+SdlOut(args);
 
-Console.ReadLine();
+static void SdlOut(string[] args)
+{
+    Console.WriteLine("press any key to start");
+    Console.ReadLine();
+    var file = "";
+    if (args.Length == 0)
+        file = "D:\\User\\Music\\F.I.R\\飞儿乐团 - 我们的爱.mp3";
+    else file = args[0];
+    var audioReader = new Eyu.Audio.Reader.AudioFileReader(file);
+    if (audioReader == null || !audioReader.CanRead) return;
+    var sdlout = new SDLOut();
+    sdlout.Init(audioReader);
+    sdlout.Play();
 
-sdlout.Pause();
+    Console.WriteLine("press any key to pause");
+    Console.ReadLine();
 
-Console.ReadLine();
+    sdlout.Pause();
 
-sdlout.Play();
+    Console.WriteLine("press any key to play");
+    Console.ReadLine();
 
-Console.ReadLine();
+    sdlout.Play();
+    Console.WriteLine("press any key to stop");
+    Console.ReadLine();
 
-sdlout.Stop();
+    sdlout.Stop();
+}
+
+static void SdlIn(string[] args)
+{
+    var sdlin = new SDLCapture();
+    sdlin.StartRecording();
+    Console.ReadLine();
+    sdlin.StopRecording();
+
+}

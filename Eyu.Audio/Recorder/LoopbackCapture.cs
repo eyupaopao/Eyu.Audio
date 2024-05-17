@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 namespace Eyu.Audio.Recorder
 {
 
-    public class LoopbackCapture : WasapiCapture, IAudioRecorder
+    public class LoopbackCapture : WasapiCapture
     {
         public LoopbackCapture(WaveFormat waveFormat) : base(WasapiLoopbackCapture.GetDefaultLoopbackCaptureDevice(), false, 100)
         {
@@ -23,7 +23,7 @@ namespace Eyu.Audio.Recorder
             return AudioClientStreamFlags.Loopback | base.GetAudioClientStreamFlags();
         }
 
-        public void StartRecord()
+        public void StartRecording()
         {
             try
             {
@@ -35,7 +35,7 @@ namespace Eyu.Audio.Recorder
             }
         }
 
-        public void StopRecord()
+        public void StopRecording()
         {
             capture.StopRecording();
         }

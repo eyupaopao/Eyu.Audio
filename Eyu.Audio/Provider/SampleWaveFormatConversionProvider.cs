@@ -1,4 +1,5 @@
 ﻿using NAudio.Wave;
+using NAudio.Wave.SampleProviders;
 using NWaves.Operations;
 using NWaves.Signals;
 using System;
@@ -18,9 +19,14 @@ namespace Eyu.Audio.Provider
 
         public SampleWaveFormatConversionProvider(WaveFormat targetFormat, ISampleProvider sourceProvider)
         {
-            this.sourceProvider = sourceProvider;
+            if (sourceProvider.WaveFormat.Channels == 1)
+                this.sourceProvider = new MonoToStereoSampleProvider(sourceProvider);
+            else
+                this.sourceProvider = sourceProvider;
+
             sourceFormat = sourceProvider.WaveFormat;
             WaveFormat = WaveFormat.CreateIeeeFloatWaveFormat(targetFormat.SampleRate, targetFormat.Channels);
+
         }
         public WaveFormat WaveFormat
         {

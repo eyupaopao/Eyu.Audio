@@ -7,7 +7,7 @@ using System.Threading;
 
 namespace Eyu.Audio.Recorder;
 
-public class ALRecorder : IAudioRecorder
+public class ALRecorder : IWaveIn
 {
     public ALRecorder(WaveFormat waveFormat, string? deviceName = null)
     {
@@ -45,7 +45,7 @@ public class ALRecorder : IAudioRecorder
         return ALC.GetStringList(GetEnumerationStringList.CaptureDeviceSpecifier);
     }
 
-    public void StartRecord()
+    public void StartRecording()
     {
         buffer = new byte[WaveFormat.SampleRate * WaveFormat.Channels * 2 * Period / 1000];
         var captureDevice = ALC.CaptureOpenDevice(deviceName, WaveFormat.SampleRate, ALFormat.Stereo16, WaveFormat.SampleRate * Period / 1000);
@@ -89,7 +89,7 @@ public class ALRecorder : IAudioRecorder
         timer.Start();
     }
 
-    public void StopRecord()
+    public void StopRecording()
     {
         cts.Cancel();
     }

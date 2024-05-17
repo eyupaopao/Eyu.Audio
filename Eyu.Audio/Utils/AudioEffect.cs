@@ -161,30 +161,30 @@ public static class AudioEffect
 
 
 
-    ////单声道复制为双声道
-    //void ChannelCopy(ref byte[] buffer)
-    //{
-    //    if (channels == 2)
-    //    {
-    //        for (int i = 0; i < buffer.Length; i += 4)
-    //        {
-    //            buffer[i + 2] = buffer[i];
-    //            buffer[i + 3] = buffer[i + 1];
-    //        }
-    //    }
-    //    if (channels == 1)
-    //    {
-    //        byte[] newbuffer = new byte[buffer.Length * 2];
-    //        for (int i = 0; i < buffer.Length; i += 2)
-    //        {
-    //            newbuffer[i * 2] = buffer[i];
-    //            newbuffer[i * 2 + 2] = buffer[i];
-    //            newbuffer[i * 2 + 1] = buffer[i + 1];
-    //            newbuffer[i * 2 + 3] = buffer[i + 1];
-    //        }
-    //        buffer = newbuffer;
-    //    }
-    //}
+    //单声道复制为双声道
+    public static void ChannelCopy(ref byte[] buffer)
+    {
+        if (channels == 2)
+        {
+            for (int i = 0; i < buffer.Length; i += 4)
+            {
+                buffer[i + 2] = buffer[i];
+                buffer[i + 3] = buffer[i + 1];
+            }
+        }
+        if (channels == 1)
+        {
+            byte[] newbuffer = new byte[buffer.Length * 2];
+            for (int i = 0; i < buffer.Length; i += 2)
+            {
+                newbuffer[i * 2] = buffer[i];
+                newbuffer[i * 2 + 2] = buffer[i];
+                newbuffer[i * 2 + 1] = buffer[i + 1];
+                newbuffer[i * 2 + 3] = buffer[i + 1];
+            }
+            buffer = newbuffer;
+        }
+    }
 
     #region pcm音量
 
