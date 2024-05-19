@@ -3,12 +3,23 @@ using Eyu.Audio;
 
 using Eyu.Audio.Reader;
 using Eyu.Audio.Recorder;
+using Eyu.Audio.Utils;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
 
 
-//SDLOut.GetDeviceNames(1);
+//var device = SDLOut.GetDeviceNames(0).ToList();
 //Console.ReadLine();
+//SdlApi.RenderDeviceChanged += SDLOut_RenderDeviceChanged;
+
+//void SDLOut_RenderDeviceChanged(object? sender, IEnumerable<SDLDevice> e)
+//{
+//    foreach (var device in e)
+//    {
+//        Console.WriteLine(device.Name);
+//    }
+//}
+
 SdlOut(args);
 
 static void SdlOut(string[] args)
@@ -43,6 +54,7 @@ static void SdlOut(string[] args)
 static void SdlIn(string[] args)
 {
     var sdlin = new SDLCapture();
+    sdlin.WaveFormat = new WaveFormat(48000, 16, 1);
     sdlin.StartRecording();
     Console.ReadLine();
     sdlin.StopRecording();
