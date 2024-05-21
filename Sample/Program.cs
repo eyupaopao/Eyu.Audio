@@ -20,7 +20,8 @@ using NAudio.Wave.SampleProviders;
 //    }
 //}
 
-AlsaRecord();
+//AlsaRecord();
+SdlIn(args);
 
 
 static void SdlOut(string[] args)
