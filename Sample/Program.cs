@@ -6,6 +6,8 @@ using Eyu.Audio.Recorder;
 using Eyu.Audio.Utils;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
+using Sample;
+using System.Diagnostics;
 
 
 //var device = SDLOut.GetDeviceNames(0).ToList();
@@ -21,8 +23,49 @@ using NAudio.Wave.SampleProviders;
 //}
 
 //AlsaRecord();
-SdlIn(args);
+//SdlIn(args);
+string recordDevices = RunCommand("pactl list sources short");
+Console.WriteLine("设备列表:\n" + recordDevices);
+//string playbackDevices = GetAlsaDevices("aplay -l");
+//Console.WriteLine("播放设备列表:\n" + playbackDevices);
 
+//Console.WriteLine($"当前选中设备：{args[0]},写入录音文件{args[1]}");
+Console.ReadLine();
+
+//AlsaRecord(args);
+//Console.WriteLine("开始录音，按回车结束录音");
+//Console.ReadLine();
+
+PulseAudioRecorder recorder = new PulseAudioRecorder();
+recorder.RecordAudio("output.raw", 10); // Record for 10 seconds
+Console.WriteLine("Recording complete.");
+
+// 
+
+static string RunCommand(string command)
+{
+    try
+    {
+        ProcessStartInfo startInfo = new ProcessStartInfo {
+            FileName = "/bin/bash",
+            Arguments = "-c \"" + command + "\"",
+            RedirectStandardOutput = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        Process process = new Process { StartInfo = startInfo };
+        process.Start();
+        string output = process.StandardOutput.ReadToEnd();
+        process.WaitForExit();
+
+        return output;
+    }
+    catch (Exception e)
+    {
+        return "Error executing command: " + e.Message;
+    }
+}
 
 static void SdlOut(string[] args)
 {
@@ -78,9 +121,9 @@ static void SdlIn(string[] args)
 
 }
 
-static void AlsaRecord()
+static void AlsaRecord(string[] args)
 {
-    var alsa = new AlsaCapture();
-    alsa.StartRecording();
-    Console.ReadLine();
+    var alsa = new AlsaCapture(args[0]);
+    //alsa.DataAvailable += Alsa_DataAvailable;
+    alsa.StartRecording(args[1]);
 }
