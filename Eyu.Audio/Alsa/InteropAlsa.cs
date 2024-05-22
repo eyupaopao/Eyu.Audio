@@ -224,5 +224,9 @@ namespace Eyu.Audio.Alsa
         public static extern int snd_mixer_selem_set_capture_volume_range(IntPtr elem, long min, long max);
         [DllImport(AlsaLibrary)]
         public static extern int snd_pcm_hw_params_set_buffer_size_near(IntPtr elem, IntPtr @params, IntPtr size);
+        [DllImport(AlsaLibrary)]
+        public static extern int snd_device_name_hint(int card,string subSystem, IntPtr elem);
+        [DllImport(AlsaLibrary)]
+        public static extern int snd_device_name_get_hint(IntPtr elem, string value);
     }
 }

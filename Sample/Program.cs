@@ -21,7 +21,15 @@ using NAudio.Wave.SampleProviders;
 //}
 
 //AlsaRecord();
-SdlIn(args);
+IntPtr hints = IntPtr.Zero;
+IntPtr name = IntPtr.Zero;
+if (InteropAlsa.snd_device_name_hint(-1, "pcm", hints) < 0)
+{
+    Console.WriteLine($"Cannot get device names");
+}
+
+Console.ReadLine();
+//SdlIn(args);
 
 
 static void SdlOut(string[] args)
