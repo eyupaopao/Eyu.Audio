@@ -228,5 +228,16 @@ namespace Eyu.Audio.Alsa
         public static extern int snd_device_name_hint(int card,string subSystem, IntPtr elem);
         [DllImport(AlsaLibrary)]
         public static extern int snd_device_name_get_hint(IntPtr elem, string value);
+        [DllImport(AlsaLibrary)]
+        public static extern int snd_card_next(IntPtr elem);
+        [DllImport(AlsaLibrary)]
+
+        public static extern int snd_ctl_open(IntPtr elem, string name, int value);
+        [DllImport(AlsaLibrary)]
+
+        public static extern int snd_ctl_close(IntPtr elem);
+        [DllImport(AlsaLibrary)]
+
+        public static extern int snc_ctl_card_info(IntPtr elem, string name, int value);
     }
 }
