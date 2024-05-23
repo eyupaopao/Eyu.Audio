@@ -21,7 +21,7 @@ public unsafe class SDLCapture : IWaveIn
         }
         if (device == null)
         {
-            device = SdlApi.GetDevices(1).FirstOrDefault();
+            device = SdlApi.InputDevices.FirstOrDefault();
         }
         if (device == null)
         {
@@ -32,19 +32,19 @@ public unsafe class SDLCapture : IWaveIn
         SdlApi.CaptureDeviceChanged += this.SdlApi_CaptureDeviceChanged;
     }
 
-    private void SdlApi_CaptureDeviceChanged(object? sender, IEnumerable<SDLDevice> e)
+    private void SdlApi_CaptureDeviceChanged()
     {
         if (currentDevice == null)
         {
-            currentDevice = SdlApi.GetDevices(1).FirstOrDefault();
+            currentDevice = SdlApi.InputDevices.FirstOrDefault();
         }
-        else if (e.Any(e => e.Name == currentDevice.Name))
+        else if (SdlApi.InputDevices.Any(e => e.Name == currentDevice.Name))
         {
             return;
         }
         else
         {
-            currentDevice = SdlApi.GetDevices(1).FirstOrDefault();
+            currentDevice = SdlApi.InputDevices.FirstOrDefault();
         }
         if (currentDevice == null)
         {

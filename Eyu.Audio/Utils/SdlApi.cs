@@ -12,6 +12,7 @@ namespace Eyu.Audio.Utils;
 public unsafe static class SdlApi
 {
     public static Sdl Api = Sdl.GetApi();
+
     static unsafe SdlApi()
     {
         var res = Api.Init(Sdl.InitAudio | Sdl.InitEvents);
@@ -19,13 +20,16 @@ public unsafe static class SdlApi
         {
             throw Api.GetErrorAsException();
         }
+        OutPutDevices = GetDevices(0);
+        InputDevices = GetDevices(1);
         Api.SetEventFilter(new(OnDeviceChange), null);
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
     }
+    public static IEnumerable<SDLDevice> OutPutDevices;
+    public static IEnumerable<SDLDevice> InputDevices;
 
-
-    public static event EventHandler<IEnumerable<SDLDevice>>? CaptureDeviceChanged;
-    public static event EventHandler<IEnumerable<SDLDevice>>? RenderDeviceChanged;
+    public static Action CaptureDeviceChanged;
+    public static Action RenderDeviceChanged;
 
     static unsafe int OnDeviceChange(void* sender, Event* e)
     {
@@ -37,11 +41,13 @@ public unsafe static class SdlApi
                 {
                     if (CaptureDeviceChanged != null)
                     {
-                        CaptureDeviceChanged?.Invoke(null, GetDevices(1));
+                        OutPutDevices = GetDevices(0);
+                        CaptureDeviceChanged?.Invoke();
                     }
                     if (RenderDeviceChanged != null)
                     {
-                        RenderDeviceChanged?.Invoke(null, GetDevices(0));
+                        InputDevices = GetDevices(1);
+                        RenderDeviceChanged?.Invoke();
 
                     }
                 }
@@ -69,6 +75,7 @@ public unsafe static class SdlApi
         }
         return list;
     }
+
     #region errors
 
     public static string NoOutputDevice = "No output device";

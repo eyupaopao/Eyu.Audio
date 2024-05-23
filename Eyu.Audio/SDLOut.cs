@@ -23,7 +23,7 @@ public class SDLOut : IWavePlayer
         }
         if (device == null)
         {
-            device = SdlApi.GetDevices(0).FirstOrDefault();
+            device = SdlApi.OutPutDevices.FirstOrDefault();
         }
         if (device == null)
         {
@@ -33,19 +33,19 @@ public class SDLOut : IWavePlayer
         SdlApi.RenderDeviceChanged += this.SdlApi_RenderDeviceChanged;
     }
 
-    private void SdlApi_RenderDeviceChanged(object? sender, IEnumerable<SDLDevice> e)
+    private void SdlApi_RenderDeviceChanged()
     {
         if (CurrentDevice == null)
         {
-            CurrentDevice = SdlApi.GetDevices(0).FirstOrDefault();
+            CurrentDevice = SdlApi.OutPutDevices.FirstOrDefault();
         }
-        else if (e.Any(e => e.Name == CurrentDevice.Name))
+        else if (SdlApi.OutPutDevices.Any(e => e.Name == CurrentDevice.Name))
         {
             return;
         }
         else
         {
-            CurrentDevice = SdlApi.GetDevices(0).FirstOrDefault();
+            CurrentDevice = SdlApi.OutPutDevices.FirstOrDefault();
         }
         if (CurrentDevice == null)
         {
