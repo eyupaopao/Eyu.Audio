@@ -9,85 +9,21 @@ using NAudio.Wave.SampleProviders;
 using Sample;
 using System.Diagnostics;
 
-
-//var device = SDLOut.GetDeviceNames(0).ToList();
-//Console.ReadLine();
-//SdlApi.RenderDeviceChanged += SDLOut_RenderDeviceChanged;
-
-//void SDLOut_RenderDeviceChanged(object? sender, IEnumerable<SDLDevice> e)
-//{
-//    foreach (var device in e)
-//    {
-//        Console.WriteLine(device.Name);
-//    }
-//}
-
-//AlsaRecord();
-//SdlIn(args);
-string recordDevices = RunCommand("pactl list sources short");
-Console.WriteLine("设备列表:\n");
-var lines = recordDevices.Split('\n');
-List<AudioDevice> devices = new List<AudioDevice>();
-foreach (var line in lines)
+var device = PulseCapture.GetDevices();
+if(device.Count() == 0)
 {
-    if (string.IsNullOrEmpty(line)) continue;
-    var deviceInfo = line.Split('\t');
-    if (deviceInfo.Length < 3) continue;
-    if (deviceInfo[0] == "0") continue;
-    var formatInfo = deviceInfo[3].Split(' ');
-    var device = new AudioDevice { id = deviceInfo[0], name = deviceInfo[1], SampleRate = formatInfo[2], Channels = formatInfo[1], Fortmat = formatInfo[0] };
-    if (device.name.Contains("input"))
-    {
-        device.IsCapture = true;
-    }
-    devices.Add(device);
+    Console.WriteLine("no device");
+    return;
 }
-Console.WriteLine("设备列表:\n" + recordDevices);
-//string playbackDevices = GetAlsaDevices("aplay -l");
-//Console.WriteLine("播放设备列表:\n" + playbackDevices);
-
-//Console.WriteLine($"当前选中设备：{args[0]},写入录音文件{args[1]}");
+var pa = new PulseCapture(device.First());
+pa.DataAvailable+= Pa_DataAvailable;
+pa.StartRecording();
 Console.ReadLine();
+pa.StopRecording();
 
-//AlsaRecord(args);
-//Console.WriteLine("开始录音，按回车结束录音");
-//Console.ReadLine();
-
-PulseAudioRecorder recorder = new PulseAudioRecorder();
-recorder.RecordAudio("output.raw", 10); // Record for 10 seconds
-Console.WriteLine("Recording complete.");
-//IntPtr hints = IntPtr.Zero;
-//IntPtr name = IntPtr.Zero;
-//if (InteropAlsa.snd_device_name_hint(-1, "pcm", hints) < 0)
-//{
-//    Console.WriteLine($"Cannot get device names");
-//}
-
-//Console.ReadLine();
-// 
-
-static string RunCommand(string command)
+void Pa_DataAvailable(object? sender, WaveInEventArgs e)
 {
-    try
-    {
-        ProcessStartInfo startInfo = new ProcessStartInfo {
-            FileName = "/bin/bash",
-            Arguments = "-c \"" + command + "\"",
-            RedirectStandardOutput = true,
-            UseShellExecute = false,
-            CreateNoWindow = true
-        };
-
-        Process process = new Process { StartInfo = startInfo };
-        process.Start();
-        string output = process.StandardOutput.ReadToEnd();
-        process.WaitForExit();
-        return output;
-    }
-    catch (Exception e)
-    {
-        return "Error executing command: " + e.Message;
-    }
+    Console.WriteLine($"capture {e.BytesRecorded} bytes");
 }
 
 static void SdlOut(string[] args)
@@ -149,31 +85,4 @@ static void AlsaRecord(string[] args)
     var alsa = new AlsaCapture(args[0]);
     //alsa.DataAvailable += Alsa_DataAvailable;
     alsa.StartRecording(args[1]);
-}
-class AudioDevice
-{
-    public string id
-    {
-        get; set;
-    }
-    public string name
-    {
-        get; set;
-    }
-    public string SampleRate
-    {
-        get; set;
-    }
-    public string Channels
-    {
-        get; set;
-    }
-    public string Fortmat
-    {
-        get; set;
-    }
-    public bool IsCapture
-    {
-        get; set;
-    }
 }
