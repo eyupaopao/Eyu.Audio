@@ -225,6 +225,10 @@ namespace Eyu.Audio.Alsa
         [DllImport(AlsaLibrary)]
         public static extern int snd_pcm_hw_params_set_buffer_size_near(IntPtr elem, IntPtr @params, IntPtr size);
         [DllImport(AlsaLibrary)]
+        public static extern int snd_device_name_hint(int card,string subSystem, IntPtr elem);
+        [DllImport(AlsaLibrary)]
+        public static extern int snd_device_name_get_hint(IntPtr elem, string value);
+        [DllImport(AlsaLibrary)]
         public static extern int snd_card_next(IntPtr elem);
         [DllImport(AlsaLibrary)]
 
