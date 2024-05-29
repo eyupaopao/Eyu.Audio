@@ -21,7 +21,10 @@ public unsafe class SDLCapture : IWaveIn
         }
         if (device == null)
         {
-            device = SdlApi.InputDevices.FirstOrDefault();
+            var name = "";
+            if(!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                name = "Echo-Cancel";
+            device = SdlApi.InputDevices.FirstOrDefault(d=>d.Name.Contains(name));
         }
         if (device == null)
         {
@@ -125,7 +128,7 @@ public unsafe class SDLCapture : IWaveIn
     }
     void CreateWaveProvider(WaveFormat sourceFormat, WaveFormat targetFormat)
     {
-        dataLenRatio = (WaveFormat.SampleRate * WaveFormat.BitsPerSample * WaveFormat.Channels * 1.0f) / (sourceFormat.SampleRate * sourceFormat.BitsPerSample * sourceFormat.Channels);
+        dataLenRatio = (targetFormat.SampleRate * targetFormat.BitsPerSample * targetFormat.Channels * 1.0f) / (sourceFormat.SampleRate * sourceFormat.BitsPerSample * sourceFormat.Channels);
         bufferedWaveProvider = new BufferedWaveProvider(sourceFormat);
         ISampleProvider channle = new SampleChannel(bufferedWaveProvider);
         if (sourceFormat.SampleRate != targetFormat.SampleRate)
@@ -135,6 +138,9 @@ public unsafe class SDLCapture : IWaveIn
         if (targetFormat.Channels != 1 && sourceFormat.Channels == 1)
         {
             channle = new MonoToStereoSampleProvider(channle);
+        }
+        if(targetFormat.Channels == 1 && sourceFormat.Channels != 1){
+            channle = new StereoToMonoSampleProvider(channle);
         }
 
         if (targetFormat.BitsPerSample == 32)

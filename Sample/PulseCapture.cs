@@ -100,10 +100,11 @@ public class PulseCapture : IWaveIn
     {
         var output = RunCommand(commmands[0]);
     }
-    static string[] commmands = ["pactl unload-module module-echo-cancel",
-"pactl load-module module-echo-cancel aec_method=webrtc source_name=echocancel sink_name=echocancel1",
-",pacmd set-default-source echocancel",
-"pacmd set-default-sink echocancel1"];
+    static string[] commmands = [
+        "pactl unload-module module-echo-cancel",
+        "pactl load-module module-echo-cancel aec_method=webrtc source_name=echocancel sink_name=echocancel1",
+        "pacmd set-default-source echocancel",
+        "pacmd set-default-sink echocancel1"];
     static string RunCommand(string command)
     {
         try

@@ -16,7 +16,7 @@ if (device.Count() == 0)
     Console.WriteLine("no device");
     return;
 }
-SdlIn(args);
+await SdlIn(args);
 // var pa = new PulseCapture(device.First(d => d.Name == "echocancel"));
 // pa.DataAvailable += Pa_DataAvailable;
 // pa.StartRecording();
@@ -72,13 +72,20 @@ static void SdlOut(string[] args)
     sdlout.Stop();
 }
 
-static void SdlIn(string[] args)
+static async Task SdlIn(string[] args)
 {
     var sdlin = new SDLCapture();
-    sdlin.WaveFormat = new WaveFormat(48000, 16, 1);
+    sdlin.WaveFormat = new WaveFormat(44100, 16, 2);
+    var stream = File.OpenWrite("test.wav");
+    sdlin.DataAvailable += (sender, e) =>
+    {
+        stream.Write(e.Buffer, 0, e.BytesRecorded);
+        // Console.WriteLine($"capture {e.BytesRecorded} bytes");
+    };
     sdlin.StartRecording();
-    Console.ReadLine();
+    await Task.Delay(10000);
     sdlin.StopRecording();
+    stream.Close();
 
 }
 
