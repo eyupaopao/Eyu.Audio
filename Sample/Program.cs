@@ -9,22 +9,24 @@ using NAudio.Wave.SampleProviders;
 using Sample;
 using System.Diagnostics;
 
+PulseCapture.OpenCancel();
 var device = PulseCapture.GetDevices();
-if(device.Count() == 0)
+if (device.Count() == 0)
 {
     Console.WriteLine("no device");
     return;
 }
-var pa = new PulseCapture(device.First());
-pa.DataAvailable+= Pa_DataAvailable;
-pa.StartRecording();
-Console.ReadLine();
-pa.StopRecording();
+SdlIn(args);
+// var pa = new PulseCapture(device.First(d => d.Name == "echocancel"));
+// pa.DataAvailable += Pa_DataAvailable;
+// pa.StartRecording();
+// Console.ReadLine();
+// pa.StopRecording();
 
-void Pa_DataAvailable(object? sender, WaveInEventArgs e)
-{
-    Console.WriteLine($"capture {e.BytesRecorded} bytes");
-}
+// void Pa_DataAvailable(object? sender, WaveInEventArgs e)
+// {
+//     Console.WriteLine($"capture {e.BytesRecorded} bytes");
+// }
 
 static void SdlOut(string[] args)
 {

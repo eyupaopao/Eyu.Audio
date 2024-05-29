@@ -87,6 +87,7 @@ public unsafe class SDLCapture : IWaveIn
             Callback = new(AudioCallback),
         };
         var audioSpec1 = new AudioSpec();
+
         _device = SdlApi.Api.OpenAudioDevice(currentDevice == null ? null : currentDevice.Name, 1, &audioSpec, &audioSpec1, (int)Sdl.AudioAllowAnyChange);
         sourceSpec = audioSpec1;
 

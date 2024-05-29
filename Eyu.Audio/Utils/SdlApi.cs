@@ -24,6 +24,7 @@ public unsafe static class SdlApi
         }
         OutPutDevices = GetDevices(0);
         InputDevices = GetDevices(1);
+        
         Api.SetEventFilter(new(OnDeviceChange), null);
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
     }

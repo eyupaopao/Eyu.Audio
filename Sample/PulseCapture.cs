@@ -1,8 +1,10 @@
 ﻿using System.Diagnostics;
 using System.Runtime.InteropServices;
 using NAudio.Wave;
-namespace Sample;
-
+namespace Eyu.Audio;
+/// <summary>
+/// Contains classes related to audio capturing and recording using PulseAudio.
+/// </summary>
 public class PulseCapture : IWaveIn
 {
     public PulseCapture(AudioDevice audioDevice)
@@ -28,7 +30,8 @@ public class PulseCapture : IWaveIn
 
     [DllImport("libpulse-simple.so.0")]
     private static extern void pa_simple_free(IntPtr s);
-
+    [DllImport("libpulse-simple.so.0", CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr pa_strerror(int error);
     private const int PA_STREAM_RECORD = 1;
     private readonly AudioDevice audioDevice;
     private WaveFormat sourceWaveFormat;
@@ -39,8 +42,9 @@ public class PulseCapture : IWaveIn
     public WaveFormat WaveFormat { get; set; }
 
 
-    public static IEnumerable<AudioDevice> GetDevices()
+    public static List<AudioDevice> GetDevices()
     {
+        var devices = new List<AudioDevice>();
         string recordDevices = RunCommand("pactl list sources short");
         Console.WriteLine("设备列表:\n");
         var lines = recordDevices.Split('\n');
@@ -54,7 +58,7 @@ public class PulseCapture : IWaveIn
             var sampleRate = int.Parse(formatInfo[2].Trim("Hz".ToCharArray()));
             var channels = int.Parse(formatInfo[1].Trim("ch".ToCharArray()));
             var WaveFormat = new WaveFormat();
-            if (formatInfo[0].Contains("f32"))
+            if (formatInfo[0].Contains("float32"))
             {
                 WaveFormat = WaveFormat.CreateIeeeFloatWaveFormat(sampleRate, channels);
             }
@@ -80,9 +84,26 @@ public class PulseCapture : IWaveIn
             {
                 device.IsCapture = true;
             }
-            yield return device;
+            devices.Add(device);
+        }
+        return devices;
+    }
+
+    public static void OpenCancel()
+    {
+        foreach (var cmd in commmands)
+        {
+            var output = RunCommand(cmd);
         }
     }
+    public static void CloseCancel()
+    {
+        var output = RunCommand(commmands[0]);
+    }
+    static string[] commmands = ["pactl unload-module module-echo-cancel",
+"pactl load-module module-echo-cancel aec_method=webrtc source_name=echocancel sink_name=echocancel1",
+",pacmd set-default-source echocancel",
+"pacmd set-default-sink echocancel1"];
     static string RunCommand(string command)
     {
         try
@@ -141,10 +162,12 @@ public class PulseCapture : IWaveIn
         pa = pa_simple_new(null, "CSharpRecorder", PA_STREAM_RECORD, audioDevice.Name, "record", ref ss, IntPtr.Zero, IntPtr.Zero, out error);
         if (pa == IntPtr.Zero)
         {
-            RecordingStopped?.Invoke(this, new StoppedEventArgs(new Exception("Failed to open PulseAudio stream.")));
+            RecordingStopped?.Invoke(this, new StoppedEventArgs(new Exception("Failed to open PulseAudio stream." + Marshal.PtrToStringAnsi(pa_strerror(error)))));
             return;
         }
 
+
+        isRecording = true;
         byte[] buffer = new byte[4096];
         Task.Run(async () =>
         {
@@ -153,6 +176,7 @@ public class PulseCapture : IWaveIn
             {
                 if (pa_simple_read(pa, buffer, buffer.Length, out error) < 0)
                 {
+                    Console.WriteLine("pa_simple_read failed: " + Marshal.PtrToStringAnsi(pa_strerror(error)));
                     continue;
                 }
                 DataAvailable?.Invoke(this, new WaveInEventArgs(buffer, buffer.Length));
@@ -169,6 +193,8 @@ public class PulseCapture : IWaveIn
             pa_simple_free(pa);
             pa = IntPtr.Zero;
         }
+        RecordingStopped?.Invoke(this, new StoppedEventArgs(null));
+        isRecording = false;
     }
 
     public void Dispose()
@@ -176,6 +202,8 @@ public class PulseCapture : IWaveIn
         StopRecording();
     }
 }
+
+
 [StructLayout(LayoutKind.Sequential)]
 internal struct pa_sample_spec
 {
@@ -202,6 +230,7 @@ internal enum PaSampleFormat
     PA_SAMPLE_MAX,
     PA_SAMPLE_INVALID = -1
 }
+
 public class AudioDevice
 {
     public string Id
