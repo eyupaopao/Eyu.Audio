@@ -15,15 +15,15 @@ using System.Threading.Tasks;
 namespace Eyu.Audio;
 public class SDLOut : IWavePlayer
 {
-    public SDLOut(SDLDevice? device = null)
+    public SDLOut(AudioDevice? device = null)
     {
-        if (device != null && device.Capture != 0)
+        if (device != null && device.IsCapture)
         {
             throw new SdlException(SdlApi.ErrorDeviceTyep);
         }
         if (device == null)
         {
-            device = SdlApi.OutPutDevices.FirstOrDefault();
+            device = DeviceEnumerator.Instance.RenderDevice.FirstOrDefault();
         }
         if (device == null)
         {
@@ -37,7 +37,7 @@ public class SDLOut : IWavePlayer
     {
         if (CurrentDevice == null)
         {
-            CurrentDevice = SdlApi.OutPutDevices.FirstOrDefault();
+            CurrentDevice = DeviceEnumerator.Instance.RenderDevice.FirstOrDefault();
         }
         else if (SdlApi.OutPutDevices.Any(e => e.Name == CurrentDevice.Name))
         {
@@ -45,7 +45,7 @@ public class SDLOut : IWavePlayer
         }
         else
         {
-            CurrentDevice = SdlApi.OutPutDevices.FirstOrDefault();
+            CurrentDevice = DeviceEnumerator.Instance.RenderDevice.FirstOrDefault();
         }
         if (CurrentDevice == null)
         {
@@ -57,7 +57,6 @@ public class SDLOut : IWavePlayer
         Stop();
         Init(inputProvider);
         Play();
-
     }
 
     public float Volume
@@ -72,7 +71,7 @@ public class SDLOut : IWavePlayer
         }
     }
 
-    public SDLDevice? CurrentDevice;
+    public AudioDevice? CurrentDevice;
     private IWaveProvider outputProvider;
     private IWaveProvider inputProvider;
     SampleChannel sampleChannel;

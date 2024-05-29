@@ -24,7 +24,7 @@ public unsafe static class SdlApi
         }
         OutPutDevices = GetDevices(0);
         InputDevices = GetDevices(1);
-        
+
         Api.SetEventFilter(new(OnDeviceChange), null);
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
     }
@@ -36,23 +36,17 @@ public unsafe static class SdlApi
 
     static unsafe int OnDeviceChange(void* sender, Event* e)
     {
+        var type = e->Type;
         Task.Run(() =>
         {
             try
             {
-                if (e->Type is (int)EventType.Audiodeviceadded or (int)EventType.Audiodeviceremoved)
+                if (type is (int)EventType.Audiodeviceadded or (int)EventType.Audiodeviceremoved)
                 {
-                    if (CaptureDeviceChanged != null)
-                    {
-                        OutPutDevices = GetDevices(0);
-                        CaptureDeviceChanged?.Invoke();
-                    }
-                    if (RenderDeviceChanged != null)
-                    {
-                        InputDevices = GetDevices(1);
-                        RenderDeviceChanged?.Invoke();
-
-                    }
+                    OutPutDevices = GetDevices(0);
+                    CaptureDeviceChanged?.Invoke();
+                    InputDevices = GetDevices(1);
+                    RenderDeviceChanged?.Invoke();
                 }
             }
             catch (Exception ex)
@@ -72,6 +66,7 @@ public unsafe static class SdlApi
             for (int i = 0; i < num; i++)
             {
                 var ptr = Api.GetAudioDeviceName(i, capture);
+                var dev = Api.GetAudioDriver(i);
                 var name = Marshal.PtrToStringUTF8(new IntPtr(ptr));
                 list.Add(new SDLDevice(name, i, capture));
             }
