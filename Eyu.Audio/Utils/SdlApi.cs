@@ -15,7 +15,7 @@ public unsafe static class SdlApi
 
     static unsafe SdlApi()
     {
-        // if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        // if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         //     Api.SetHint(Sdl.HintAudiodriver, "pulseaudio");
         var res = Api.Init(Sdl.InitAudio | Sdl.InitEvents);
         if (res != 0)
