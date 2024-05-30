@@ -55,9 +55,13 @@ public unsafe class SDLCapture : IWaveIn
             RecordingStopped?.Invoke(this, new StoppedEventArgs(new SdlException(SdlApi.NoInputDevice)));
             return;
         }
-        StopRecording();
-        StartRecording();
+        if (_isRecording)
+        {
+            StopRecording();
+            StartRecording();
+        }
     }
+    private bool _isRecording;
 
     private uint _device;
     private byte[] _sourceBuffer;
@@ -112,6 +116,7 @@ public unsafe class SDLCapture : IWaveIn
         CreateWaveProvider(sourceFormat, WaveFormat);
 
         SdlApi.Api.PauseAudioDevice(_device, 0);
+        _isRecording = true;
     }
     private void AudioCallback(void* userdata, byte* stream, int len)
     {
@@ -156,5 +161,6 @@ public unsafe class SDLCapture : IWaveIn
         SdlApi.Api.PauseAudioDevice(_device, 1);
         SdlApi.Api.CloseAudioDevice(_device);
         RecordingStopped?.Invoke(this, new StoppedEventArgs());
+        _isRecording = false;
     }
 }
