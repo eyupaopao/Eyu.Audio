@@ -1,5 +1,7 @@
-﻿using IPCASAPP.Cross.Utils;
+﻿using Eyu.Audio.Recorder;
+using IPCASAPP.Cross.Utils;
 using NAudio.CoreAudioApi;
+using NAudio.Wave;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -13,22 +15,40 @@ public class DeviceEnumerator
 {
     public static DeviceEnumerator Instance
     {
+        get; set;
+    }
+    public bool UseSdl
+    {
         get;
-    } = new DeviceEnumerator();
+    }
+
+    public static void CreateInstance(bool useSdl = false)
+    {
+        if (Instance == null)
+        {
+            Instance = new DeviceEnumerator(useSdl);
+        }
+    }
     ~DeviceEnumerator()
     {
         enumerator.Dispose();
     }
-    private DeviceEnumerator()
+
+    private DeviceEnumerator(bool useSdl)
     {
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        if (useSdl)
+        {
+            SdlDeviceMonitor();
+            return;
+        }
+        else if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
             WindowsDeviceMonitor();
+            return;
         }
-        else
-        {
-            LinuxDeviceMonitor();
-        }
+
+        SdlDeviceMonitor();
+        UseSdl = useSdl;
     }
     #region windows
 
@@ -56,9 +76,20 @@ public class DeviceEnumerator
             CaptureDevice.Add(device);
         }
         var mMNotificationClient = new NotificationClientImplementation();
-        mMNotificationClient.OnDeviceAddedDelegate += DeviceAdded;
-        mMNotificationClient.OnDeviceRemovedDelegate += DeviceRemoved;
+        mMNotificationClient.OnDeviceStateChangedDelegate += DeviceStateChangedHandler;
         enumerator.RegisterEndpointNotificationCallback(mMNotificationClient);
+    }
+
+    private void DeviceStateChangedHandler(string deviceId, DeviceState state)
+    {
+        if (state == DeviceState.Active)
+        {
+            DeviceAdded(deviceId);
+        }
+        else
+        {
+            DeviceRemoved(deviceId);
+        }
     }
 
     private void DeviceRemoved(string id)
@@ -112,36 +143,88 @@ public class DeviceEnumerator
     }
 
     #endregion
-    private void LinuxDeviceMonitor()
+    private void SdlDeviceMonitor()
     {
-        SdlApi.RenderDeviceChanged += this.RenderDeviceChanged;
-        SdlApi.CaptureDeviceChanged += this.CaptureDeviceChanged;
+        CaptureDevice = SdlApi.GetDevices(1);
+        RenderDevice = SdlApi.GetDevices(0);
+        SdlApi.DeviceChangedAction += DeviceChanged;
     }
 
-    private void CaptureDeviceChanged()
+    private void DeviceChanged()
     {
-        foreach (var item in SdlApi.InputDevices)
+        var capture = SdlApi.GetDevices(1);
+        var except1 = CaptureDevice.Except(capture).Any();
+        var except2 = capture.Except(CaptureDevice).Any();
+        if (except1 || except2)
         {
-            var device = new AudioDevice {
-                Name = item.Name,
-                Index = item.Index,
-                IsCapture = item.Capture == 1,
-            };
+            CaptureDevice = capture;
+            CaptureDeviceChangedAction?.Invoke();
         }
-        CaptureDeviceChangedAction?.Invoke();
+        var render = SdlApi.GetDevices(0);
+        var except3 = RenderDevice.Except(render).Any();
+        var except4 = render.Except(RenderDevice).Any();
+        if (except3 || except4)
+        {
+            RenderDevice = render;
+            RenderDeviceChangedAction?.Invoke();
+        }
     }
 
-    private void RenderDeviceChanged()
+    public IWavePlayer CreatePlayer(AudioDevice audioDevice = null)
     {
-        foreach (var item in SdlApi.OutPutDevices)
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows) || UseSdl)
         {
-            var device = new AudioDevice {
-                Name = item.Name,
-                Index = item.Index,
-                IsCapture = item.Capture == 1,
-            };
+            return new SDLOut(audioDevice);
         }
-        RenderDeviceChangedAction?.Invoke();
+        if (audioDevice != null)
+        {
+            var mmDevice = enumerator.GetDevice(audioDevice.Id);
+            return new WasapiOut(mmDevice, AudioClientShareMode.Shared, useEventSync: true, 200);
+        }
+        else
+        {
+            return new WasapiOut();
+        }
+    }
+    public IWaveIn CreateCapture(AudioDevice audioDevice = null)
+    {
+        if (UseSdl || !RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            if (audioDevice?.IsCapture == false)
+                throw new Exception("Not support os platform");
+            return new SDLCapture(audioDevice);
+        }
+        if (audioDevice == null)
+            return new WasapiCapture();
+        else
+        {
+            var mmDevice = enumerator.GetDevice(audioDevice.Id);
+            return new WasapiCapture(mmDevice);
+        }
+    }
+    public IWaveIn CreateCaptureEchoCancel()
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            throw new Exception("Not support os platform");
+        }
+        else
+        {
+            try
+            {
+                PulseInterop.OpenCancel();
+            }
+            catch
+            {
+                throw;
+            }
+        }
+        var device = CaptureDevice.FirstOrDefault(a => a.Name.Contains("Echo-Cancel"));
+        if (device == null)
+        {
+            throw new Exception("Not found echo cancel device");
+        }
+        return new SDLCapture();
     }
 
     public Action CaptureDeviceChangedAction;

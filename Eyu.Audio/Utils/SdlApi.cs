@@ -13,28 +13,21 @@ public unsafe static class SdlApi
 {
     public static Sdl Api = Sdl.GetApi();
 
-    static unsafe SdlApi()
+    static SdlApi()
     {
-        // if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-        //     Api.SetHint(Sdl.HintAudiodriver, "pulseaudio");
         var res = Api.Init(Sdl.InitAudio | Sdl.InitEvents);
         if (res != 0)
         {
             throw Api.GetErrorAsException();
         }
-        OutPutDevices = GetDevices(0);
-        InputDevices = GetDevices(1);
 
         Api.SetEventFilter(new(OnDeviceChange), null);
-        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
     }
-    public static IEnumerable<SDLDevice> OutPutDevices;
-    public static IEnumerable<SDLDevice> InputDevices;
 
-    public static Action CaptureDeviceChanged;
-    public static Action RenderDeviceChanged;
 
-    static unsafe int OnDeviceChange(void* sender, Event* e)
+    public static Action DeviceChangedAction;
+
+    static int OnDeviceChange(void* sender, Event* e)
     {
         var type = e->Type;
         Task.Run(() =>
@@ -43,10 +36,7 @@ public unsafe static class SdlApi
             {
                 if (type is (int)EventType.Audiodeviceadded or (int)EventType.Audiodeviceremoved)
                 {
-                    OutPutDevices = GetDevices(0);
-                    CaptureDeviceChanged?.Invoke();
-                    InputDevices = GetDevices(1);
-                    RenderDeviceChanged?.Invoke();
+                    DeviceChangedAction?.Invoke();
                 }
             }
             catch (Exception ex)
@@ -57,9 +47,9 @@ public unsafe static class SdlApi
         return 0;
     }
 
-    public static unsafe List<SDLDevice> GetDevices(int capture)
+    public static List<AudioDevice> GetDevices(int capture)
     {
-        var list = new List<SDLDevice>();
+        var list = new List<AudioDevice>();
         var num = Api.GetNumAudioDevices(capture);
         if (num > 0)
         {
@@ -68,7 +58,7 @@ public unsafe static class SdlApi
                 var ptr = Api.GetAudioDeviceName(i, capture);
                 var dev = Api.GetAudioDriver(i);
                 var name = Marshal.PtrToStringUTF8(new IntPtr(ptr));
-                list.Add(new SDLDevice(name, i, capture));
+                list.Add(new AudioDevice() { Name = name, Index = i, IsCapture = capture == 1 });
             }
         }
         return list;

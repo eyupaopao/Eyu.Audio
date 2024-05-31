@@ -30,7 +30,7 @@ public class SDLOut : IWavePlayer
             throw new SdlException(SdlApi.NoOutputDevice);
         }
         this.CurrentDevice = device;
-        SdlApi.RenderDeviceChanged += this.SdlApi_RenderDeviceChanged;
+        DeviceEnumerator.Instance.RenderDeviceChangedAction += SdlApi_RenderDeviceChanged;
     }
 
     private void SdlApi_RenderDeviceChanged()
@@ -39,7 +39,7 @@ public class SDLOut : IWavePlayer
         {
             CurrentDevice = DeviceEnumerator.Instance.RenderDevice.FirstOrDefault();
         }
-        else if (SdlApi.OutPutDevices.Any(e => e.Name == CurrentDevice.Name))
+        else if (DeviceEnumerator.Instance.RenderDevice.Any(e => e.Name == CurrentDevice.Name))
         {
             return;
         }
@@ -94,10 +94,8 @@ public class SDLOut : IWavePlayer
         SdlApi.Api.CloseAudioDevice(_device);
     }
 
-
     public unsafe void Init(IWaveProvider inputProvider)
     {
-
         if (PlaybackState != 0)
         {
             throw new InvalidOperationException("Can't re-initialize during playback");
@@ -174,22 +172,4 @@ public class SDLOut : IWavePlayer
     }
 }
 
-public class SDLDevice
-{
-    public string Name;
-    public int Index;
-    public int Capture;
-
-    public SDLDevice(string name, int index, int capture)
-    {
-        Name = name;
-        Index = index;
-        Capture = capture;
-    }
-
-    public override string? ToString()
-    {
-        return $"{{name:{Name},index:{Index},capture:{Capture}}}";
-    }
-}
 

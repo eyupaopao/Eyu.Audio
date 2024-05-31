@@ -13,18 +13,15 @@ namespace Eyu.Audio.Recorder;
 public unsafe class SDLCapture : IWaveIn
 {
 
-    public SDLCapture(SDLDevice? device = null)
+    public SDLCapture(AudioDevice? device = null)
     {
-        if (device != null && device.Capture != 1)
+        if (device?.IsCapture == false)
         {
             throw new SdlException(SdlApi.ErrorDeviceTyep);
         }
         if (device == null)
         {
-            var name = "";
-            if(!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                name = "Echo-Cancel";
-            device = SdlApi.InputDevices.FirstOrDefault(d=>d.Name.Contains(name));
+            device = DeviceEnumerator.Instance.CaptureDevice.FirstOrDefault();
         }
         if (device == null)
         {
@@ -32,22 +29,22 @@ public unsafe class SDLCapture : IWaveIn
         }
         this.currentDevice = device;
         WaveFormat = new WaveFormat(8000, 16, 1);
-        SdlApi.CaptureDeviceChanged += this.SdlApi_CaptureDeviceChanged;
+        DeviceEnumerator.Instance.CaptureDeviceChangedAction += this.SdlApi_CaptureDeviceChanged;
     }
 
     private void SdlApi_CaptureDeviceChanged()
     {
         if (currentDevice == null)
         {
-            currentDevice = SdlApi.InputDevices.FirstOrDefault();
+            currentDevice = DeviceEnumerator.Instance.CaptureDevice.FirstOrDefault();
         }
-        else if (SdlApi.InputDevices.Any(e => e.Name == currentDevice.Name))
+        else if (DeviceEnumerator.Instance.CaptureDevice.Any(e => e.Name == currentDevice.Name))
         {
             return;
         }
         else
         {
-            currentDevice = SdlApi.InputDevices.FirstOrDefault();
+            currentDevice = DeviceEnumerator.Instance.CaptureDevice.FirstOrDefault();
         }
         if (currentDevice == null)
         {
@@ -84,7 +81,7 @@ public unsafe class SDLCapture : IWaveIn
         StopRecording();
     }
     AudioSpec sourceSpec;
-    private SDLDevice? currentDevice;
+    private AudioDevice? currentDevice;
 
     public unsafe void StartRecording()
     {
@@ -144,7 +141,8 @@ public unsafe class SDLCapture : IWaveIn
         {
             channle = new MonoToStereoSampleProvider(channle);
         }
-        if(targetFormat.Channels == 1 && sourceFormat.Channels != 1){
+        if (targetFormat.Channels == 1 && sourceFormat.Channels != 1)
+        {
             channle = new StereoToMonoSampleProvider(channle);
         }
 
