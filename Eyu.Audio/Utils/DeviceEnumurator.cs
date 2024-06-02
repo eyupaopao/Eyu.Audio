@@ -1,6 +1,7 @@
 ﻿using Eyu.Audio.Recorder;
 using IPCASAPP.Cross.Utils;
 using NAudio.CoreAudioApi;
+using NAudio.CoreAudioApi.Interfaces;
 using NAudio.Wave;
 using System;
 using System.Collections.Generic;
@@ -11,7 +12,7 @@ using System.Threading.Tasks;
 
 namespace Eyu.Audio.Utils;
 
-public class DeviceEnumerator
+public class DeviceEnumerator : IMMNotificationClient
 {
     public static DeviceEnumerator Instance
     {
@@ -51,7 +52,44 @@ public class DeviceEnumerator
         UseSdl = useSdl;
     }
     #region windows
+    public void OnDefaultDeviceChanged(DataFlow flow, Role role, string defaultDeviceId)
+    {
+        //OnDefaultDeviceChangedDelegate?.Invoke(flow, role, defaultDeviceId);
+    }
 
+    public void OnDeviceAdded(string pwstrDeviceId)
+    {
+        //OnDeviceAddedDelegate?.Invoke(pwstrDeviceId);
+    }
+
+    public void OnDeviceRemoved(string deviceId)
+    {
+        //OnDeviceRemovedDelegate?.Invoke(deviceId);
+    }
+
+    public void OnDeviceStateChanged(string deviceId, DeviceState newState)
+    {
+        if (newState == DeviceState.Active)
+        {
+            DeviceAdded(deviceId);
+        }
+        else
+        {
+            DeviceRemoved(deviceId);
+        }
+        //OnDeviceStateChangedDelegate?.Invoke(deviceId, newState);
+    }
+
+    public void OnPropertyValueChanged(string pwstrDeviceId, PropertyKey key)
+    {
+        //OnPropertyValueChangedDelegate?.Invoke(pwstrDeviceId, key);
+    }
+
+    //public Action<DataFlow, Role, string> OnDefaultDeviceChangedDelegate;
+    //public Action<string> OnDeviceAddedDelegate;
+    //public Action<string> OnDeviceRemovedDelegate;
+    //public Action<string, DeviceState> OnDeviceStateChangedDelegate;
+    //public Action<string, PropertyKey> OnPropertyValueChangedDelegate;
     private MMDeviceEnumerator enumerator = null!;
     private void WindowsDeviceMonitor()
     {
@@ -75,22 +113,10 @@ public class DeviceEnumerator
             };
             CaptureDevice.Add(device);
         }
-        var mMNotificationClient = new NotificationClientImplementation();
-        mMNotificationClient.OnDeviceStateChangedDelegate += DeviceStateChangedHandler;
-        enumerator.RegisterEndpointNotificationCallback(mMNotificationClient);
+        enumerator.RegisterEndpointNotificationCallback(this);
     }
 
-    private void DeviceStateChangedHandler(string deviceId, DeviceState state)
-    {
-        if (state == DeviceState.Active)
-        {
-            DeviceAdded(deviceId);
-        }
-        else
-        {
-            DeviceRemoved(deviceId);
-        }
-    }
+
 
     private void DeviceRemoved(string id)
     {
@@ -235,8 +261,21 @@ public class DeviceEnumerator
 
 public class AudioDevice
 {
-    public string? Id;
-    public int Index;
-    public bool IsCapture;
-    public string? Name;
+    public bool IsSelected { get; set; }
+    public string? Id
+    {
+        get; set;
+    }
+    public int Index
+    {
+        get; set;
+    }
+    public bool IsCapture
+    {
+        get; set;
+    }
+    public string? Name
+    {
+        get; set;
+    }
 }

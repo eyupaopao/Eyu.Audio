@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 namespace Eyu.Audio.Utils;
 
 [SupportedOSPlatform("linux")]
-internal class PulseInterop
+public class PulseInterop
 {
     private const string PaLib = "libpulse-simple.so.0";
     [DllImport(PaLib, CallingConvention = CallingConvention.Cdecl)]
@@ -43,39 +43,30 @@ internal class PulseInterop
     }
     public static void OpenCancel()
     {
-        foreach (var cmd in commmands)
-        {
-            var output = RunCommand(cmd);
-        }
+        var output = RunCommand("pactl load-module module-echo-cancel aec_method=webrtc source_name=echocancel sink_name=echocancel1");
+
     }
     public static void CloseCancel()
     {
-        var output = RunCommand(commmands[0]);
+        var output = RunCommand("pactl unload-module module-echo-cancel");
     }
     static string RunCommand(string command)
     {
-        try
-        {
-            ProcessStartInfo startInfo = new ProcessStartInfo {
-                FileName = "/bin/bash",
-                Arguments = "-c \"" + command + "\"",
-                RedirectStandardOutput = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
+        ProcessStartInfo startInfo = new ProcessStartInfo {
+            FileName = "/bin/bash",
+            Arguments = "-c \"" + command + "\"",
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
 
-            Process process = new Process { StartInfo = startInfo };
-            process.Start();
-            string output = process.StandardOutput.ReadToEnd();
-            process.WaitForExit();
-            if (output.Contains("Command 'pactl' not found"))
-                throw new Exception("no support please install pulseaudio");
-            return output;
-        }
-        catch (Exception e)
-        {
-            return "Error executing command: " + e.Message;
-        }
+        Process process = new Process { StartInfo = startInfo };
+        process.Start();
+        string output = process.StandardError.ReadToEnd();
+        process.WaitForExit();
+        if (!string.IsNullOrEmpty(output))
+            throw new Exception(output);
+        return output;
     }
     static string[] commmands = [
         "pactl unload-module module-echo-cancel",
