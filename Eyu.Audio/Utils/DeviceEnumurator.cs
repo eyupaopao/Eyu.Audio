@@ -169,6 +169,9 @@ public class DeviceEnumerator : IMMNotificationClient
     }
 
     #endregion
+
+    #region sdl/linux
+
     private void SdlDeviceMonitor()
     {
         CaptureDevice = SdlApi.GetDevices(1);
@@ -195,6 +198,7 @@ public class DeviceEnumerator : IMMNotificationClient
             RenderDeviceChangedAction?.Invoke();
         }
     }
+    #endregion
 
     public IWavePlayer CreatePlayer(AudioDevice audioDevice = null)
     {
