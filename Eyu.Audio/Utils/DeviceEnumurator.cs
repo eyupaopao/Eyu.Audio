@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -14,10 +15,7 @@ namespace Eyu.Audio.Utils;
 
 public class DeviceEnumerator : IMMNotificationClient
 {
-    public static DeviceEnumerator Instance
-    {
-        get; set;
-    }
+    public static DeviceEnumerator Instance = null!;
     public bool UseSdl
     {
         get;
@@ -200,7 +198,7 @@ public class DeviceEnumerator : IMMNotificationClient
     }
     #endregion
 
-    public IWavePlayer CreatePlayer(AudioDevice audioDevice = null)
+    public IWavePlayer CreatePlayer(AudioDevice? audioDevice = null)
     {
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows) || UseSdl)
         {
@@ -216,7 +214,7 @@ public class DeviceEnumerator : IMMNotificationClient
             return new WasapiOut();
         }
     }
-    public IWaveIn CreateCapture(AudioDevice audioDevice = null)
+    public IWaveIn CreateCapture(AudioDevice? audioDevice = null)
     {
         if (UseSdl || !RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
@@ -232,6 +230,7 @@ public class DeviceEnumerator : IMMNotificationClient
             return new WasapiCapture(mmDevice);
         }
     }
+    [SupportedOSPlatform("Linux")]
     public IWaveIn CreateCaptureEchoCancel()
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
@@ -249,7 +248,7 @@ public class DeviceEnumerator : IMMNotificationClient
                 throw;
             }
         }
-        var device = CaptureDevice.FirstOrDefault(a => a.Name.Contains("Echo-Cancel"));
+        var device = CaptureDevice.FirstOrDefault(a => a.Name != null && a.Name.Contains("Echo-Cancel"));
         if (device == null)
         {
             throw new Exception("Not found echo cancel device");
@@ -257,15 +256,18 @@ public class DeviceEnumerator : IMMNotificationClient
         return new SDLCapture();
     }
 
-    public Action CaptureDeviceChangedAction;
-    public Action RenderDeviceChangedAction;
+    public Action? CaptureDeviceChangedAction;
+    public Action? RenderDeviceChangedAction;
     public List<AudioDevice> RenderDevice = new();
     public List<AudioDevice> CaptureDevice = new();
 }
 
 public class AudioDevice
 {
-    public bool IsSelected { get; set; }
+    public bool IsSelected
+    {
+        get; set;
+    }
     public string? Id
     {
         get; set;
