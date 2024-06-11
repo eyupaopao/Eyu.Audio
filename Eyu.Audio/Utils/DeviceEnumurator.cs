@@ -216,7 +216,7 @@ public class DeviceEnumerator : IMMNotificationClient
             return new WasapiOut();
         }
     }
-    public IWaveIn CreateCapture(AudioDevice audioDevice = null)
+    public IWaveIn CreateCapture(AudioDevice? audioDevice = null)
     {
         if (UseSdl || !RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
