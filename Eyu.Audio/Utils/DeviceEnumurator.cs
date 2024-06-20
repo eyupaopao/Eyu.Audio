@@ -227,6 +227,8 @@ public class DeviceEnumerator : IMMNotificationClient
         else
         {
             var mmDevice = enumerator.GetDevice(audioDevice.Id);
+            if (mmDevice.DataFlow == DataFlow.Render)
+                return new WasapiLoopbackCapture(mmDevice);
             return new WasapiCapture(mmDevice);
         }
     }
