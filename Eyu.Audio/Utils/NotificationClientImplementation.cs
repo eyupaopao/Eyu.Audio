@@ -2,7 +2,7 @@
 using NAudio.CoreAudioApi.Interfaces;
 using System;
 
-namespace IPCASAPP.Cross.Utils;
+namespace Eyu.Audio.Utils;
 
 /// <summary>
 /// 音频设备获取

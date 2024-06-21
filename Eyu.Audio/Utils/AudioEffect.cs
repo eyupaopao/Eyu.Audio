@@ -1,4 +1,5 @@
-﻿using NAudio.Wave.SampleProviders;
+﻿using NAudio.Wave;
+using NAudio.Wave.SampleProviders;
 using NWaves.Operations;
 using NWaves.Signals;
 using System;
@@ -240,26 +241,59 @@ public class StreamVolumeHelper
     private float[] maxSamples;
     private int sampleCount;
     private StreamVolumeEventArgs args;
-    private int channels;
+    private BufferedWaveProvider waveProvider;
+    private SampleChannel sampleChannel;
     private int SamplesPerNotification;
-    public event EventHandler<StreamVolumeEventArgs> StreamVolume;
+    public Action<StreamVolumeEventArgs> StreamVolume;
     public Action<float[]> SampleStream;
-    public StreamVolumeHelper(int channels, int SampleRate)
+    private WaveFormat _waveFormat;
+
+    public StreamVolumeHelper(WaveFormat waveFormat = null)
     {
-        SamplesPerNotification = SampleRate / 10;
-        this.channels = channels;
-        maxSamples = new float[channels];
+        if (waveFormat == null) waveFormat = new WaveFormat(8000, 16, 2);
+        _waveFormat = waveFormat;
+        Init();
+    }
+    void Init()
+    {
+        SamplesPerNotification = _waveFormat.SampleRate / 10;
+        maxSamples = new float[_waveFormat.Channels];
         sampleCount = 0;
         args = new StreamVolumeEventArgs() { MaxSampleValues = maxSamples };
+
+        waveProvider = new BufferedWaveProvider(_waveFormat);
+        sampleChannel = new SampleChannel(waveProvider);
+
+    }
+    public void WaveFormCalculator(byte[] buffer, int count, WaveFormat waveFormat = null)
+    {
+
+        if (!waveFormat.Equals(_waveFormat))
+        {
+            _waveFormat = waveFormat;
+            Init();
+        }
+        WaveFormCalculator(buffer, count);
+    }
+
+    public void WaveFormCalculator(float[] sample, int samplesRead, WaveFormat waveFormat = null)
+    {
+        if (!waveFormat.Equals(_waveFormat))
+        {
+            _waveFormat = waveFormat;
+            Init();
+        }
+        WaveFormCalculator(sample, samplesRead);
     }
     public void WaveFormCalculator(byte[] buffer, int count)
     {
         try
         {
-            var sample = buffer.Wave16ToSample(0, count);
-
+            waveProvider.AddSamples(buffer, 0, count);
+            var sample = new float[count / 2];
+            var len = sampleChannel.Read(sample, 0, count / 2);
             SampleStream?.Invoke(sample);
-            WaveFormCalculator(sample, sample.Length);
+            WaveFormCalculator(sample, len);
         }
         catch (Exception ex)
         {
@@ -271,9 +305,9 @@ public class StreamVolumeHelper
     {
         if (StreamVolume is not null)
         {
-            for (int index = 0; index < samplesRead; index += channels)
+            for (int index = 0; index < samplesRead; index += _waveFormat.Channels)
             {
-                for (int channel = 0; channel < channels; channel++)
+                for (int channel = 0; channel < _waveFormat.Channels; channel++)
                 {
                     float sampleValue = Math.Abs(sample[index + channel]);
                     maxSamples[channel] = Math.Max(maxSamples[channel], sampleValue);
@@ -281,12 +315,13 @@ public class StreamVolumeHelper
                 sampleCount++;
                 if (sampleCount >= SamplesPerNotification)
                 {
-                    StreamVolume?.Invoke(this, args);
+                    StreamVolume?.Invoke(args);
                     sampleCount = 0;
                     // n.b. we avoid creating new instances of anything here
-                    Array.Clear(maxSamples, 0, channels);
+                    Array.Clear(maxSamples, 0, _waveFormat.Channels);
                 }
             }
         }
     }
+
 }

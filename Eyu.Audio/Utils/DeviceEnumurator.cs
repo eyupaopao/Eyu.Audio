@@ -1,5 +1,4 @@
 ﻿using Eyu.Audio.Recorder;
-using IPCASAPP.Cross.Utils;
 using NAudio.CoreAudioApi;
 using NAudio.CoreAudioApi.Interfaces;
 using NAudio.Wave;
@@ -8,8 +7,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Eyu.Audio.Utils;
 
