@@ -8,16 +8,13 @@ using System.Threading.Tasks;
 
 namespace Eyu.Audio;
 
-public class Mp3FrameCreator
+public static class Mp3FrameCreator
 {
-    ConstructorInfo? mp3FrameConstructor;
-    public Mp3FrameCreator()
-    {
-        mp3FrameConstructor = typeof(Mp3Frame).GetConstructor(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+    static ConstructorInfo? mp3FrameConstructor = typeof(Mp3Frame).GetConstructor(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
   null, Type.EmptyTypes, null);
-    }
 
-    public Mp3Frame? CreateMp3Frame(byte[] buffer)
+
+    public static Mp3Frame? CreateMp3Frame(byte[] buffer)
     {
         if (mp3FrameConstructor == null) return null;
         var mp3 = mp3FrameConstructor.Invoke(null) as Mp3Frame;
