@@ -267,7 +267,7 @@ public class StreamVolumeHelper
     }
     public void WaveFormCalculator(byte[] buffer, int count, WaveFormat waveFormat = null)
     {
-
+        if (waveFormat == null) return;
         if (!waveFormat.Equals(_waveFormat))
         {
             _waveFormat = waveFormat;
