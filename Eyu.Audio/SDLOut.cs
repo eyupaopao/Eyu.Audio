@@ -1,33 +1,82 @@
 ﻿using Eyu.Audio.Provider;
+using Eyu.Audio.Utils;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
-using Silk.NET.Core.Native;
 using Silk.NET.SDL;
 using System;
-using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
+using System.Reflection.PortableExecutable;
 using System.Runtime.InteropServices;
-using System.Runtime.Versioning;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 
 namespace Eyu.Audio;
 public class SDLOut : IWavePlayer
 {
+    public SDLOut(AudioDevice? device = null)
+    {
+        if (device != null && device.IsCapture)
+        {
+            throw new SdlException(SdlApi.ErrorDeviceTyep);
+        }
+        if (device == null)
+        {
+            device = DeviceEnumerator.Instance.RenderDevice.FirstOrDefault();
+        }
+        if (device == null)
+        {
+            throw new SdlException(SdlApi.NoOutputDevice);
+        }
+        this.CurrentDevice = device;
+        DeviceEnumerator.Instance.RenderDeviceChangedAction += SdlApi_RenderDeviceChanged;
+    }
+
+    private void SdlApi_RenderDeviceChanged()
+    {
+        if (CurrentDevice == null)
+        {
+            CurrentDevice = DeviceEnumerator.Instance.RenderDevice.FirstOrDefault();
+        }
+        else if (DeviceEnumerator.Instance.RenderDevice.Any(e => e.Name == CurrentDevice.Name))
+        {
+            return;
+        }
+        else
+        {
+            CurrentDevice = DeviceEnumerator.Instance.RenderDevice.FirstOrDefault();
+        }
+        if (CurrentDevice == null)
+        {
+            SdlApi.Api.CloseAudioDevice(_device);
+            PlaybackState = PlaybackState.Stopped;
+            PlaybackStopped?.Invoke(this, new StoppedEventArgs(new SdlException(SdlApi.NoOutputDevice)));
+            return;
+        }
+        Stop();
+        Init(inputProvider);
+        Play();
+    }
+
     public float Volume
     {
-        get;
-        set;
+        get
+        {
+            return sampleChannel.Volume;
+        }
+        set
+        {
+            sampleChannel.Volume = value;
+        }
     }
-    static Sdl _sdl = Sdl.GetApi();
-    static SDLOut()
-    {
-        _sdl.Init(Sdl.InitAudio | Sdl.InitEvents);
-    }
-    private IWaveProvider _provider;
+
+    public AudioDevice? CurrentDevice;
+    private IWaveProvider outputProvider;
+    private IWaveProvider inputProvider;
+    SampleChannel sampleChannel;
     byte[] _data;
     private uint _device;
-    string _deviceName;
 
     public PlaybackState PlaybackState
     {
@@ -42,123 +91,85 @@ public class SDLOut : IWavePlayer
 
     public void Dispose()
     {
-        _sdl?.CloseAudioDevice(_device);
+        SdlApi.Api.CloseAudioDevice(_device);
     }
 
-
-    public static unsafe List<SDLDevice> GetDeviceNames(int capture)
-    {
-        var list = new List<SDLDevice>();
-        var num = _sdl.GetNumAudioDevices(capture);
-        if (num > 1)
-        {
-            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-            for (int i = 0; i < num; i++)
-            {
-                var name = Encoding.UTF8.GetString(Encoding.GetEncoding("GB2312").GetBytes(_sdl.GetAudioDeviceNameS(i, capture)));
-                //IntPtr namePtr = new IntPtr(_sdl.GetAudioDeviceName(i, capture));
-                //var name = Marshal.Copy(namePtr);
-                list.Add(new SDLDevice(_sdl.GetAudioDeviceNameS(i, capture), i, capture));
-            }
-        }
-        return list;
-    }
-
-    public unsafe void Init(IWaveProvider waveProvider)
+    public unsafe void Init(IWaveProvider inputProvider)
     {
         if (PlaybackState != 0)
         {
             throw new InvalidOperationException("Can't re-initialize during playback");
         }
-        OutputWaveFormat = waveProvider.WaveFormat;
-        if (_sdl == null)
-        {
-            throw new Exception("open Sdl Faile");
-        }
-        if (_sdl.InitSubSystem(Sdl.InitAudio) != 0)
-        {
-            throw _sdl.GetErrorAsException();
-        }
+        this.inputProvider = inputProvider;
 
-        var audioSpec = new AudioSpec
-        {
-            Freq = OutputWaveFormat.SampleRate,
-            Callback = new(audio_callback),
 
+        var audioSpec = new AudioSpec {
+            Freq = inputProvider.WaveFormat.SampleRate,
+            Channels = (byte)inputProvider.WaveFormat.Channels,
+            Callback = new(AudioCallback),
         };
-        AudioSpec audioSpec1;
-        var name = _sdl.GetAudioDeviceName(0, 0);
-        _device = _sdl.OpenAudioDevice(name, 0, &audioSpec, &audioSpec1, (int)Sdl.AudioAllowAnyChange);
+        AudioSpec suportSpec;
+        _device = SdlApi.Api.OpenAudioDevice(CurrentDevice == null ? null : CurrentDevice.Name, 0, &audioSpec, &suportSpec, (int)Sdl.AudioAllowAnyChange);
+
         if (_device == 0)
         {
-            throw _sdl.GetErrorAsException();
+            PlaybackStopped?.Invoke(this, new StoppedEventArgs(SdlApi.Api.GetErrorAsException()));
+            return;
         }
-        var bitsPerSample = audioSpec1.Size / audioSpec1.Samples / audioSpec1.Channels * 8;
+        var bitsPerSample = suportSpec.Size / suportSpec.Samples / suportSpec.Channels * 8;
 
-        InitWaveProvider(waveProvider, new WaveFormat(audioSpec1.Freq, (int)bitsPerSample, audioSpec1.Channels));
-        _data = new byte[audioSpec1.Size];
-        //var device = _sdl.OpenAudio(&audioSpec, null);
+        sampleChannel = new SampleChannel(inputProvider, true);
+        OutputWaveFormat = new WaveFormat(suportSpec.Freq, (int)bitsPerSample, suportSpec.Channels);
+        CreateWaveProvider(sampleChannel, OutputWaveFormat);
+        _data = new byte[suportSpec.Size];
     }
 
-    private void InitWaveProvider(IWaveProvider waveProvider, WaveFormat waveFormat)
+    private void CreateWaveProvider(SampleChannel sampleChannel, WaveFormat waveFormat)
     {
-        ISampleProvider sampleChannel = new SampleChannel(waveProvider, true);
-        if (waveFormat.SampleRate != sampleChannel.WaveFormat.SampleRate)
+        ISampleProvider _sampleProvider = sampleChannel;
+        if (waveFormat.SampleRate != this.sampleChannel.WaveFormat.SampleRate)
         {
-            sampleChannel = new SampleWaveFormatConversionProvider(waveFormat, sampleChannel);
+            _sampleProvider = new SampleWaveFormatConversionProvider(waveFormat, _sampleProvider);
         }
         if (waveFormat.Channels == 1)
         {
-            sampleChannel = new StereoToMonoSampleProvider(sampleChannel);
+            _sampleProvider = new StereoToMonoSampleProvider(_sampleProvider);
         }
 
         if (waveFormat.BitsPerSample == 32)
-            _provider = new SampleToWaveProvider(sampleChannel);
+            outputProvider = new SampleToWaveProvider(_sampleProvider);
         else if (waveFormat.BitsPerSample == 24)
-            _provider = new SampleToWaveProvider24(sampleChannel);
+            outputProvider = new SampleToWaveProvider24(_sampleProvider);
         else
-            _provider = new SampleToWaveProvider16(sampleChannel);
+            outputProvider = new SampleToWaveProvider16(_sampleProvider);
 
     }
 
     // 音频处理回调函数
-    unsafe void audio_callback(void* userdata, byte* stream, int len)
+    unsafe void AudioCallback(void* userdata, byte* stream, int len)
     {
-        var readed = _provider.Read(_data, 0, len);
+        var readed = outputProvider.Read(_data, 0, len);
         len = Math.Min(len, readed);
         Marshal.Copy(_data, 0, new(stream), len);
     }
     public void Pause()
     {
-        _sdl.PauseAudioDevice(_device, 1);
+        SdlApi.Api.PauseAudioDevice(_device, 1);
         PlaybackState = PlaybackState.Paused;
     }
 
     public void Play()
     {
-        _sdl.PauseAudioDevice(_device, 0);
+        SdlApi.Api.PauseAudioDevice(_device, 0);
         PlaybackState = PlaybackState.Playing;
     }
 
     public void Stop()
     {
-        _sdl?.CloseAudioDevice(_device);
+        SdlApi.Api.CloseAudioDevice(_device);
         PlaybackState = PlaybackState.Stopped;
-        PlaybackStopped?.Invoke(this, null);
+        PlaybackStopped?.Invoke(this, new StoppedEventArgs(null));
     }
 }
 
-public class SDLDevice
-{
-    public string Name;
-    public int Index;
-    public int Capture;
-
-    public SDLDevice(string name, int index, int capture)
-    {
-        Name = name;
-        Index = index;
-        Capture = capture;
-    }
-}
 

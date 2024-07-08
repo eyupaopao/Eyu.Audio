@@ -12,11 +12,8 @@ namespace Eyu.Audio.Recorder
 
     public class LoopbackCapture : WasapiCapture
     {
-        public LoopbackCapture(WaveFormat waveFormat) : base(WasapiLoopbackCapture.GetDefaultLoopbackCaptureDevice(), false, 100)
+        public LoopbackCapture() : base(WasapiLoopbackCapture.GetDefaultLoopbackCaptureDevice(), false, 100)
         {
-            capture = this;
-            capture.WaveFormat = waveFormat;
-
         }
         protected override AudioClientStreamFlags GetAudioClientStreamFlags()
         {
@@ -66,7 +63,7 @@ namespace Eyu.Audio.Recorder
             }
         }
         IWaveIn capture;
-        public WaveFormat WaveFormat => capture.WaveFormat;
+        public WaveFormat WaveFormat { get; set; }
 
 
     }

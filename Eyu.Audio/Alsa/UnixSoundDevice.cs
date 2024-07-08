@@ -38,6 +38,7 @@ class UnixSoundDevice : ISoundDevice
     bool _recordingMute;
     nint _playbackPcm;
     nint _recordingPcm;
+    nint _loopbackPcm;
     nint _mixer;
     nint _mixelElement;
     bool _wasDisposed;
@@ -261,6 +262,32 @@ class UnixSoundDevice : ISoundDevice
         });
     }
 
+    public void Loopback(Action<byte[]> onDataAvailable, CancellationToken token)
+    {
+        _ = Task.Run(() =>
+        {
+            if (_wasDisposed)
+                throw new ObjectDisposedException(nameof(UnixSoundDevice));
+
+            var parameters = new nint();
+            var dir = 0;
+
+            var header = WavHeader.Build(Settings.RecordingSampleRate, Settings.RecordingChannels, Settings.RecordingBitsPerSample);
+            using (var memoryStream = new MemoryStream())
+            {
+                header.WriteToStream(memoryStream);
+                onDataAvailable?.Invoke(memoryStream.ToArray());
+            }
+
+            OpenLoopbackPcm();
+            PcmInitialize(_recordingPcm, header, ref parameters, ref dir);
+            ReadStream(onDataAvailable, header, ref parameters, ref dir, token);
+            CloseRecordingPcm();
+        });
+    }
+
+
+
     unsafe void WriteStream(Stream wavStream, WavHeader header, ref nint @params, ref int dir, CancellationToken cancellationToken)
     {
         ulong frames;
@@ -447,6 +474,7 @@ class UnixSoundDevice : ISoundDevice
         lock (RecordingInitializationLock)
             ThrowErrorMessage(InteropAlsa.snd_pcm_open(ref _recordingPcm, Settings.RecordingDeviceName, snd_pcm_stream_t.SND_PCM_STREAM_CAPTURE, 0), ExceptionMessages.CanNotOpenRecording);
     }
+  
 
     void CloseRecordingPcm()
     {
@@ -458,7 +486,14 @@ class UnixSoundDevice : ISoundDevice
 
         _recordingPcm = default;
     }
+    private void OpenLoopbackPcm()
+    {
+        if (_recordingPcm != default)
+            return;
 
+        lock (RecordingInitializationLock)
+            ThrowErrorMessage(InteropAlsa.snd_pcm_open(ref _loopbackPcm, Settings.RecordingDeviceName, snd_pcm_stream_t.SND_PCM_STREAM_CAPTURE, 0), ExceptionMessages.CanNotOpenRecording);
+    }
     void OpenMixer()
     {
         if (_mixer != default)
