@@ -8,8 +8,9 @@ namespace Eyu.Audio.Utils;
 
 public enum AudioFormat
 {
-    Pcm = 0,
-    Mp3 = 1,
+    Mp3 = 0x01,
+    Pcm = 0x02,
+    None = 0xFF,
 }
 
 public enum AudioExtension

@@ -7,7 +7,7 @@ using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
 
 
-//SDLOut.GetDeviceNames(1);
+//var device = SDLOut.GetDeviceNames(0).ToList();
 //Console.ReadLine();
 SdlOut(args);
 

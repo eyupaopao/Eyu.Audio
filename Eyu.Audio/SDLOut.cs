@@ -4,6 +4,8 @@ using NAudio.Wave.SampleProviders;
 using Silk.NET.Core.Native;
 using Silk.NET.SDL;
 using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Text;
@@ -20,8 +22,7 @@ public class SDLOut : IWavePlayer
     static Sdl _sdl = Sdl.GetApi();
     static SDLOut()
     {
-        //_sdl.Init(Sdl.InitAudio | Sdl.InitEvents);
-        //_sdl.
+        _sdl.Init(Sdl.InitAudio | Sdl.InitEvents);
     }
     private IWaveProvider _provider;
     byte[] _data;
@@ -45,22 +46,22 @@ public class SDLOut : IWavePlayer
     }
 
 
-    public static unsafe string[] GetDeviceNames(int capture)
+    public static unsafe List<SDLDevice> GetDeviceNames(int capture)
     {
-        _sdl.Init(Sdl.InitAudio);
-
+        var list = new List<SDLDevice>();
         var num = _sdl.GetNumAudioDevices(capture);
-        if (num < 1) return null;
-        var names = new string[num];
-        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-        for (int i = 0; i < num; i++)
+        if (num > 1)
         {
-            var nameptr = _sdl.GetAudioDeviceNameS(i, capture);
-
-            //var name = Encoding.UTF8.GetString(Encoding.GetEncoding("GB2312").GetString());
-            //names[i] = name;
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+            for (int i = 0; i < num; i++)
+            {
+                var name = Encoding.UTF8.GetString(Encoding.GetEncoding("GB2312").GetBytes(_sdl.GetAudioDeviceNameS(i, capture)));
+                //IntPtr namePtr = new IntPtr(_sdl.GetAudioDeviceName(i, capture));
+                //var name = Marshal.Copy(namePtr);
+                list.Add(new SDLDevice(_sdl.GetAudioDeviceNameS(i, capture), i, capture));
+            }
         }
-        return names;
+        return list;
     }
 
     public unsafe void Init(IWaveProvider waveProvider)
@@ -70,7 +71,6 @@ public class SDLOut : IWavePlayer
             throw new InvalidOperationException("Can't re-initialize during playback");
         }
         OutputWaveFormat = waveProvider.WaveFormat;
-        _sdl = Sdl.GetApi();
         if (_sdl == null)
         {
             throw new Exception("open Sdl Faile");
@@ -79,24 +79,10 @@ public class SDLOut : IWavePlayer
         {
             throw _sdl.GetErrorAsException();
         }
-        //var bytesPerSample = OutputWaveFormat.BitsPerSample / 8;
 
-        //ushort formatResult = (OutputWaveFormat.BitsPerSample / 8) switch {
-        //    1 => Sdl.AudioU8,
-        //    2 => Sdl.AudioS16Sys,
-        //    4 => OutputWaveFormat.Encoding switch {
-        //        WaveFormatEncoding.Pcm => Sdl.AudioS32Lsb,
-        //        WaveFormatEncoding.IeeeFloat => Sdl.AudioF32,
-        //        _ => throw new Exception("no support audio format"),
-        //    },
-        //    _ => throw new Exception("no support audio format"),
-        //};
-
-        //Sdl.AudioS32Lsb;
-        var audioSpec = new AudioSpec {
+        var audioSpec = new AudioSpec
+        {
             Freq = OutputWaveFormat.SampleRate,
-            //Channels = (byte)OutputWaveFormat.Channels,
-            //Format = formatResult,
             Callback = new(audio_callback),
 
         };
@@ -162,4 +148,17 @@ public class SDLOut : IWavePlayer
     }
 }
 
+public class SDLDevice
+{
+    public string Name;
+    public int Index;
+    public int Capture;
+
+    public SDLDevice(string name, int index, int capture)
+    {
+        Name = name;
+        Index = index;
+        Capture = capture;
+    }
+}
 
