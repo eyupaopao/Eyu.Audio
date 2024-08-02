@@ -191,7 +191,7 @@ public static class AudioEffect
 
     private static short getShort(byte[] src, int start)
     {
-        return (short)(src[start] & 0xFF | src[start + 1] << 8);
+        return (short)(src[start] & 0xFF | (src[start + 1] << 8));
     }
 
     const short SHRT_MAX = 0x7F00;
@@ -225,7 +225,7 @@ public static class AudioEffect
                 }
 
                 dest[nCur] = (byte)(volum & 0xFF);
-                dest[nCur + 1] = (byte)(volum >> 8 & 0xFF);
+                dest[nCur + 1] = (byte)((volum >> 8) & 0xFF);
                 nCur += 2;
             }
 
