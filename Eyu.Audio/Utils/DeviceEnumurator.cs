@@ -35,6 +35,7 @@ public class DeviceEnumerator : IMMNotificationClient
         if (useSdl)
         {
             SdlDeviceMonitor();
+            UseSdl = useSdl;
             return;
         }
         else if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
@@ -43,8 +44,7 @@ public class DeviceEnumerator : IMMNotificationClient
             return;
         }
 
-        SdlDeviceMonitor();
-        UseSdl = useSdl;
+        //SdlDeviceMonitor();
     }
     #region windows
     public void OnDefaultDeviceChanged(DataFlow flow, Role role, string defaultDeviceId)
