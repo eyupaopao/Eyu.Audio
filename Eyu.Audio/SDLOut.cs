@@ -32,7 +32,9 @@ public class SDLOut : IWavePlayer
         this.CurrentDevice = device;
         DeviceEnumerator.Instance.RenderDeviceChangedAction += SdlApi_RenderDeviceChanged;
     }
-
+    /// <summary>
+    /// 改变播放硬件
+    /// </summary>
     private void SdlApi_RenderDeviceChanged()
     {
         if (CurrentDevice == null)
@@ -93,7 +95,11 @@ public class SDLOut : IWavePlayer
     {
         SdlApi.Api.CloseAudioDevice(_device);
     }
-
+    /// <summary>
+    /// 初始化播放器
+    /// </summary>
+    /// <param name="inputProvider"></param>
+    /// <exception cref="InvalidOperationException"></exception>
     public unsafe void Init(IWaveProvider inputProvider)
     {
         if (PlaybackState != 0)
@@ -103,7 +109,8 @@ public class SDLOut : IWavePlayer
         this.inputProvider = inputProvider;
 
 
-        var audioSpec = new AudioSpec {
+        var audioSpec = new AudioSpec
+        {
             Freq = inputProvider.WaveFormat.SampleRate,
             Channels = (byte)inputProvider.WaveFormat.Channels,
             Callback = new(AudioCallback),
@@ -121,9 +128,13 @@ public class SDLOut : IWavePlayer
         sampleChannel = new SampleChannel(inputProvider, true);
         OutputWaveFormat = new WaveFormat(suportSpec.Freq, (int)bitsPerSample, suportSpec.Channels);
         CreateWaveProvider(sampleChannel, OutputWaveFormat);
-        _data = new byte[suportSpec.Size];
+        _data = new byte[suportSpec.Size + 8];
     }
-
+    /// <summary>
+    /// 构建数据供应器
+    /// </summary>
+    /// <param name="sampleChannel"></param>
+    /// <param name="waveFormat"></param>
     private void CreateWaveProvider(SampleChannel sampleChannel, WaveFormat waveFormat)
     {
         ISampleProvider _sampleProvider = sampleChannel;
