@@ -94,7 +94,39 @@ public static class AudioEffect
         }
     }
 
+    public static bool IsMute(byte[] data, double criterion)
+    {
+        // 每个样本占用2个字节，双通道数据
+        int sampleCount = data.Length / 4; // 每个样本有4个字节（2个通道）
 
+        var min = double.MaxValue;
+        var max = double.MinValue;
+
+        for (int i = 0; i < sampleCount; i++)
+        {
+            // 获取左声道和右声道的样本
+            short leftSample = BitConverter.ToInt16(data, i * 4);
+            short rightSample = BitConverter.ToInt16(data, i * 4 + 2);
+
+            // 计算每个通道的幅度
+            double leftAmplitude = leftSample / 32768.0; // 16位有符号整数的最大幅度
+            double rightAmplitude = rightSample / 32768.0;
+
+            // 计算整体幅度（取决于你的需求，可以取左声道或右声道，或者两者的最大值）
+            double amplitude = Math.Max(Math.Abs(leftAmplitude), Math.Abs(rightAmplitude));
+            var dbValue = double.NegativeInfinity;
+            // 将幅度转换为dB
+            if (amplitude > 0)
+            {
+                dbValue = 20 * Math.Log10(amplitude); // dB计算公式
+            }
+            if (dbValue < min) min = dbValue;
+            if (dbValue > max) max = dbValue;
+        }
+        var gap = max - min;
+        if (gap > criterion) return false;
+        return true;
+    }
 
     public static int ReSample(ref float[] sourceSample, int offset, int count, int sourceSampleRate, int destSampleRate)
     {
