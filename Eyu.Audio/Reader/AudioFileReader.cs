@@ -18,65 +18,62 @@ public class AudioFileReader : WaveStream, ISampleProvider, IWaveProvider
     /// Initializes a new instance of AudioFileReader
     /// </summary>
     /// <param name="fileName">The file to open</param>
-    public AudioFileReader(string fileName, bool useCache = false)
+    public AudioFileReader(string fileName)
     {
         lockObject = new object();
         FileName = fileName;
-        CreateReaderStream(fileName, useCache);
+        _stream = File.OpenRead(fileName);
+        CreateReaderStream();
         sourceBytesPerSample = readerStream.WaveFormat.BitsPerSample / 8 * readerStream.WaveFormat.Channels;
         sampleChannel = new SampleChannel(readerStream, false);
         destBytesPerSample = 4 * sampleChannel.WaveFormat.Channels;
         length = SourceToDest(readerStream.Length);
     }
-
+    public AudioFileReader(string fileName, Stream stream)
+    {
+        lockObject = new object();
+        FileName = fileName;
+        _stream = stream;
+        CreateReaderStream();
+        sourceBytesPerSample = readerStream.WaveFormat.BitsPerSample / 8 * readerStream.WaveFormat.Channels;
+        sampleChannel = new SampleChannel(readerStream, false);
+        destBytesPerSample = 4 * sampleChannel.WaveFormat.Channels;
+        length = SourceToDest(readerStream.Length);
+    }
     /// <summary>
     /// Creates the reader stream, supporting all filetypes in the core NAudio library,
     /// and ensuring we are in PCM format
     /// </summary>
     /// <param name="fileName">File Name</param>
-    private void CreateReaderStream(string fileName, bool useCache)
+    private void CreateReaderStream()
     {
-        using var file = File.OpenRead(fileName);
-        MemoryStream stream = null;
-        if (useCache)
+        if (FileName.EndsWith(".wav", StringComparison.OrdinalIgnoreCase))
         {
-            stream = new MemoryStream();
-            file.CopyTo(stream);
-            stream.Position = 0;
-        }
-
-
-        if (fileName.EndsWith(".wav", StringComparison.OrdinalIgnoreCase))
-        {
-            if (useCache)
-                readerStream = new WaveFileReader(stream);
-            else
-                readerStream = new WaveFileReader(fileName);
+            readerStream = new WaveFileReader(_stream);
             if (readerStream.WaveFormat.Encoding != WaveFormatEncoding.Pcm && readerStream.WaveFormat.Encoding != WaveFormatEncoding.IeeeFloat)
             {
                 readerStream = WaveFormatConversionStream.CreatePcmStream(readerStream);
                 readerStream = new BlockAlignReductionStream(readerStream);
             }
         }
-        else if (fileName.EndsWith(".mp3", StringComparison.OrdinalIgnoreCase))
+        else if (FileName.EndsWith(".mp3", StringComparison.OrdinalIgnoreCase))
         {
-            if (useCache)
-                mp3FileReader = new Mp3Reader(stream);
-            else mp3FileReader = new Mp3Reader(fileName);
+
+            mp3FileReader = new Mp3Reader(_stream);
             readerStream = mp3FileReader;
         }
-        else if (fileName.EndsWith(".aiff", StringComparison.OrdinalIgnoreCase) || fileName.EndsWith(".aif", StringComparison.OrdinalIgnoreCase))
+        else if (FileName.EndsWith(".aiff", StringComparison.OrdinalIgnoreCase) || FileName.EndsWith(".aif", StringComparison.OrdinalIgnoreCase))
         {
-            if (useCache)
-                readerStream = new AiffFileReader(stream);
-            else readerStream = new AiffFileReader(fileName);
+            readerStream = new AiffFileReader(_stream);
         }
         else
         {
             // fall back to media foundation reader, see if that can play it
-            readerStream = new MediaFoundationReader(fileName);
+            readerStream = new MediaFoundationReader(FileName);
         }
     }
+
+    Stream _stream;
 
     /// <summary>
     /// File Name
