@@ -204,7 +204,7 @@ public class DeviceEnumerator : IMMNotificationClient
         if (audioDevice != null)
         {
             var mmDevice = enumerator.GetDevice(audioDevice.Id);
-            return new WasapiOut(mmDevice, AudioClientShareMode.Shared, useEventSync: true, 0);
+            return new WasapiOut(mmDevice, AudioClientShareMode.Shared, useEventSync: true, 100);
         }
         else
         {
