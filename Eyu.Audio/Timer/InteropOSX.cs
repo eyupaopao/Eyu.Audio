@@ -13,8 +13,9 @@ internal enum DispatchTime
     Forever = ~0
 }
 internal class InteropOSX
-{ // 导入 libdispatch 库
-    public const string LibDispatch = "/usr/lib/system/libdispatch.dylib";
+{
+    // 导入 libdispatch 库
+    const string LibDispatch = "/usr/lib/system/libdispatch.dylib";
 
     // 定义 dispatch_queue_t 类型
     public static readonly IntPtr DispatchQueueMain = (IntPtr)1; // 主队列
@@ -26,130 +27,85 @@ internal class InteropOSX
     public const ulong NSEC_PER_SEC = 1000000000;
     public const ulong DISPATCH_TIME_NOW = 0;
 
-    // 定义 dispatch_time_t 类型
+    /// <summary>
+    /// 创建一个新的调度队列
+    /// </summary>
+    /// <param name="label">队列的标签</param>
+    /// <param name="attr">队列的属性</param>
+    /// <returns>返回新创建的调度队列的指针</returns>
     [DllImport(LibDispatch, EntryPoint = "dispatch_queue_create", CharSet = CharSet.Ansi)]
     public static extern IntPtr DispatchQueueCreate(string label, IntPtr attr);
 
-    // 定义 dispatch_source_create 函数
+    /// <summary>
+    /// 创建一个新的调度源
+    /// </summary>
+    /// <param name="type">调度源的类型</param>
+    /// <param name="handle">调度源的句柄</param>
+    /// <param name="mask">调度源的掩码</param>
+    /// <param name="queue">调度源所属的队列</param>
+    /// <returns>返回新创建的调度源的指针</returns>
     [DllImport(LibDispatch, EntryPoint = "dispatch_source_create")]
     public static extern IntPtr DispatchSourceCreate(ulong type, ulong handle, ulong mask, IntPtr queue);
 
-    // 定义 dispatch_source_set_timer 函数
+    /// <summary>
+    /// 设置调度源的定时器
+    /// </summary>
+    /// <param name="source">调度源</param>
+    /// <param name="start">定时器的开始时间</param>
+    /// <param name="interval">定时器的间隔时间</param>
+    /// <param name="leeway">定时器的宽限时间</param>
     [DllImport(LibDispatch, EntryPoint = "dispatch_source_set_timer")]
     public static extern void DispatchSourceSetTimer(IntPtr source, ulong start, ulong interval, ulong leeway);
 
-    // 定义 dispatch_source_set_event_handler 函数
+    /// <summary>
+    /// 设置调度源的事件处理程序
+    /// </summary>
+    /// <param name="source">调度源</param>
+    /// <param name="handler">事件处理程序</param>
     [DllImport(LibDispatch, EntryPoint = "dispatch_source_set_event_handler_f")]
     public static extern void DispatchSourceSetEventHandler(IntPtr source, DispatchBlock handler);
 
-    // 定义 dispatch_resume 函数
+    /// <summary>
+    /// 恢复调度源
+    /// </summary>
+    /// <param name="source">调度源</param>
     [DllImport(LibDispatch, EntryPoint = "dispatch_resume")]
     public static extern void DispatchResume(IntPtr source);
 
+    /// <summary>
+    /// 暂停调度源
+    /// </summary>
+    /// <param name="source">调度源</param>
     [DllImport(LibDispatch, EntryPoint = "dispatch_suspend")]
     public static extern void DispatchSuspend(IntPtr source);
 
-    // 定义 dispatch_source_cancel 函数
+    /// <summary>
+    /// 取消调度源
+    /// </summary>
+    /// <param name="source">调度源</param>
     [DllImport(LibDispatch, EntryPoint = "dispatch_source_cancel")]
     public static extern void DispatchSourceCancel(IntPtr source);
 
-    // 定义 dispatch_release 函数
+    /// <summary>
+    /// 释放调度源
+    /// </summary>
+    /// <param name="source">调度源</param>
     [DllImport(LibDispatch, EntryPoint = "dispatch_release")]
     public static extern void DispatchRelease(IntPtr source);
 
-    // 定义 dispatch_time 函数
+    /// <summary>
+    /// 获取调度时间
+    /// </summary>
+    /// <param name="when">起始时间</param>
+    /// <param name="delta">时间增量</param>
+    /// <returns>返回计算后的调度时间</returns>
     [DllImport(LibDispatch, EntryPoint = "dispatch_time")]
     public static extern ulong DispatchTime(ulong when, long delta);
 
-    // 定义 dispatch_block_t 类型
+    /// <summary>
+    /// 定义调度块类型
+    /// </summary>
+    /// <param name="ptr">指向调度块的指针</param>
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate void DispatchBlock(IntPtr ptr);
-
-    // static void Main(string[] args)
-    // {
-    //     // 创建一个定时器
-    //     IntPtr timer = DispatchSourceCreate(1, 0, 0, DispatchQueueMain); // 1 表示 DISPATCH_SOURCE_TYPE_TIMER
-
-    //     // 设置定时器的开始时间、间隔和误差
-    //     ulong start = DispatchTime(0, (long)(2 * 1e9)); // 2 秒后开始
-    //     ulong interval = (ulong)(1 * 1e9); // 每 1 秒触发一次
-    //     ulong leeway = (ulong)(0.1 * 1e9); // 允许 0.1 秒的误差
-    //     DispatchSourceSetTimer(timer, start, interval, leeway);
-
-    //     // 设置定时器的事件处理程序
-    //     DispatchBlock block = () =>
-    //     {
-    //         Console.WriteLine("Timer fired at: " + DateTime.Now);
-    //     };
-    //     IntPtr blockPtr = Marshal.GetFunctionPointerForDelegate(block);
-    //     DispatchSourceSetEventHandler(timer, blockPtr);
-
-    //     // 启动定时器
-    //     DispatchResume(timer);
-
-    //     // 主线程等待 10 秒
-    //     Thread.Sleep(10000);
-
-    //     // 取消定时器
-    //     DispatchSourceCancel(timer);
-    //     DispatchRelease(timer);
-
-    //     Console.WriteLine("Timer stopped.");
-    // }
-}
-
-
-public class OSXTimer : ITimer
-{
-    static OSXTimer()
-    {
-        queue = InteropOSX.DispatchQueueCreate("osx timer", 0);
-    }
-
-    private IntPtr timer;
-    private static IntPtr queue;
-    private Action _tick;
-    public OSXTimer(Action tick)
-    {
-        _tick = tick;
-
-        if (queue == IntPtr.Zero)
-        {
-            throw new Exception($"Unable to create timer, errno = {Marshal.GetLastPInvokeError()}");
-        }
-        timer = InteropOSX.DispatchSourceCreate(InteropOSX.DISPATCH_SOURCE_TYPE_TIMER, 0, 0, queue);
-        if (timer == IntPtr.Zero)
-            throw new Exception($"Unable to create timer, errno = {Marshal.GetLastPInvokeError()}");
-
-        InteropOSX.DispatchSourceSetEventHandler(timer, Scheduler);
-        var start = InteropOSX.DispatchTime(InteropOSX.DISPATCH_TIME_NOW, 0);
-
-        InteropOSX.DispatchSourceSetTimer(timer, start, InteropOSX.NSEC_PER_SEC / 1, 0);
-
-    }
-    public void SetPeriod(int periodMS)
-    {
-
-    }
-
-    private void Scheduler(IntPtr state)
-    {
-        _tick();
-    }
-
-    public void Start()
-    {
-        InteropOSX.DispatchResume(timer);
-    }
-
-    public void Stop()
-    {
-        InteropOSX.DispatchSuspend(timer);
-    }
-
-    public void Dispose()
-    {
-        InteropOSX.DispatchSourceCancel(timer);
-        InteropOSX.DispatchRelease(timer);
-    }
 }

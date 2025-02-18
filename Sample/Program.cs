@@ -10,10 +10,13 @@ using NAudio.Wave.SampleProviders;
 using Sample;
 using System.Diagnostics;
 
-new OSXTimer(()=>
+var timmer = new HighResolutionTimer(() =>
 {
     Console.WriteLine("tick");
-}).Start();
+});
+timmer.SetPeriod(300);
+timmer.Start();
+
 while(true)
 {
     Thread.Sleep(1000);
