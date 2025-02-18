@@ -13,12 +13,20 @@ public class HighResolutionTimer : ITimer, IDisposable
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             timer = new MultimediaTimer(tick);
-        else
+        else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
         {
             if (nint.Size == 8)
                 timer = new LinuxTimer64(tick);
             else
                 timer = new LinuxTimer(tick);
+        }
+        else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+        {
+
+        }
+        else
+        {
+            throw new NotSupportedException(); 
         }
     }
 
