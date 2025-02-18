@@ -22,7 +22,7 @@ public class HighResolutionTimer : ITimer, IDisposable
         }
         else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
         {
-
+            timer = new OSXTimer(tick);
         }
         else
         {

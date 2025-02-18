@@ -3,11 +3,21 @@ using Eyu.Audio;
 using Eyu.Audio.Alsa;
 using Eyu.Audio.Reader;
 using Eyu.Audio.Recorder;
+using Eyu.Audio.Timer;
 using Eyu.Audio.Utils;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
 using Sample;
 using System.Diagnostics;
+
+new OSXTimer(()=>
+{
+    Console.WriteLine("tick");
+}).Start();
+while(true)
+{
+    Thread.Sleep(1000);
+}
 
 PulseCapture.OpenCancel();
 var device = PulseCapture.GetDevices();
