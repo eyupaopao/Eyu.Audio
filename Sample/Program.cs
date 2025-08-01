@@ -10,26 +10,26 @@ using NAudio.Wave.SampleProviders;
 using Sample;
 using System.Diagnostics;
 
-var timmer = new HighResolutionTimer(() =>
-{
-    Console.WriteLine("tick");
-});
-timmer.SetPeriod(300);
-timmer.Start();
+//var timmer = new Timer(() =>
+//{
+//    Console.WriteLine("tick");
+//});
+//timmer.SetPeriod(300);
+//timmer.Start();
 
-while(true)
-{
-    Thread.Sleep(1000);
-}
+//while(true)
+//{
+//    Thread.Sleep(1000);
+//}
 
-PulseCapture.OpenCancel();
-var device = PulseCapture.GetDevices();
-if (device.Count() == 0)
-{
-    Console.WriteLine("no device");
-    return;
-}
-await SdlIn(args);
+//PulseCapture.OpenCancel();
+//var device = PulseCapture.GetDevices();
+//if (device.Count() == 0)
+//{
+//    Console.WriteLine("no device");
+//    return;
+//}
+//await SdlIn(args);
 // var pa = new PulseCapture(device.First(d => d.Name == "echocancel"));
 // pa.DataAvailable += Pa_DataAvailable;
 // pa.StartRecording();

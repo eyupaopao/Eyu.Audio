@@ -1,4 +1,6 @@
-﻿using NAudio.Wave;
+﻿using NAudio.Flac;
+using NAudio.Vorbis;
+using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
 using System;
 using System.IO;
@@ -66,6 +68,18 @@ public class AudioFileReader : WaveStream, ISampleProvider, IWaveProvider
         {
             readerStream = new AiffFileReader(_stream);
         }
+        else if (FileName.EndsWith(".flac", StringComparison.OrdinalIgnoreCase))
+        {
+            readerStream = new FlacReader(_stream);
+        }
+        else if (FileName.EndsWith(".ogg", StringComparison.OrdinalIgnoreCase))
+        {
+            readerStream = new VorbisWaveReader(_stream);
+        }
+        //else if (FileName.EndsWith(".opus", StringComparison.OrdinalIgnoreCase))
+        //{
+        //    readerStream = new OpusWaveReader(_stream);
+        //}
         else
         {
             // fall back to media foundation reader, see if that can play it

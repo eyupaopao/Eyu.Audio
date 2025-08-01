@@ -40,14 +40,27 @@ internal class OSXTimer : ITimer
         // 默认间隔为1秒
         InteropOSX.DispatchSourceSetTimer(timer, start, InteropOSX.NSEC_PER_SEC, 0);
     }
-    public void SetPeriod(int periodMS)
+    public void SetPeriod(double milliseconds)
     {
         if (running)
             // 暂停定时器
             InteropOSX.DispatchSuspend(timer);
 
         ulong start = InteropOSX.DispatchTime(InteropOSX.DISPATCH_TIME_NOW, 0);
-        ulong interval = (ulong)periodMS * 1_000_000; // 转换为纳秒
+        ulong interval = (ulong)(milliseconds * 1_000_000); // 转换为纳秒
+        InteropOSX.DispatchSourceSetTimer(timer, start, interval, 0);
+        if (running)
+            // 恢复定时器
+            InteropOSX.DispatchResume(timer);
+    }
+    public void SetPeriod(int milliseconds)
+    {
+        if (running)
+            // 暂停定时器
+            InteropOSX.DispatchSuspend(timer);
+
+        ulong start = InteropOSX.DispatchTime(InteropOSX.DISPATCH_TIME_NOW, 0);
+        ulong interval = (ulong)milliseconds * 1_000_000; // 转换为纳秒
         InteropOSX.DispatchSourceSetTimer(timer, start, interval, 0);
         if (running)
             // 恢复定时器

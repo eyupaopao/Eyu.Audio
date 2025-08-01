@@ -4,102 +4,70 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Eyu.Audio.Timer
+namespace Eyu.Audio.Timer;
+
+/// <summary>
+/// linux平台的高精度定时器，在低性能硬件中可能会因为系统调度而导致延迟，如果需要更高的精度和实时性能，建议使用HighPrecisionTimer。
+/// </summary>
+internal class LinuxTimer : ITimer, IDisposable
 {
-    internal class LinuxTimer : ITimer, IDisposable
+    private Thread? _thread;
+    private volatile bool _running;
+    private long _periodMicroseconds;
+    private readonly Action _onTick;
+
+    public LinuxTimer(Action onTick)
     {
-        private readonly int fileDescriptor;
-        private readonly CancellationTokenSource cts = new CancellationTokenSource();
-        private readonly Action tick;
-        private bool isRunning;
+        _onTick = onTick;
+    }
 
-        public LinuxTimer(Action tick)
+    public void SetPeriod(double milliseconds)
+    {
+        _periodMicroseconds = (long)(milliseconds * 1000);
+    }
+
+    public void Start()
+    {
+        if (_running) return;
+        _running = true;
+        _thread = new Thread(Run) { IsBackground = true };
+        _thread.Start();
+    }
+
+    public void Stop()
+    {
+        _running = false;
+        _thread?.Join();
+    }
+
+    private void Run()
+    {
+        while (_running)
         {
-            fileDescriptor = Interop.timerfd_create(Interop.ClockIds.CLOCK_MONOTONIC, 0);
-
-            if (fileDescriptor == -1)
-                throw new Exception($"Unable to create timer, errno = {Marshal.GetLastWin32Error()}");
-            {
-
-            }
-
-            ThreadPool.QueueUserWorkItem(Scheduler);
-            this.tick = tick;
-        }
-
-
-        public void SetPeriod(int periodMS)
-        {
-            SetFrequency((uint)periodMS * 1_000);
-        }
-
-        private void Scheduler(object state)
-        {
-            while (!cts.IsCancellationRequested)
-            {
-                Wait();
-
-                if (isRunning)
-                    tick?.Invoke();
-            }
-        }
-
-        private void SetFrequency(uint period)
-        {
-            uint sec = period / 1000000;
-            uint ns = (period - sec * 1000000) * 1000;
-            var itval = new Interop.itimerspec
-            {
-                it_interval = new Interop.timespec
-                {
-                    tv_sec = sec,
-                    tv_nsec = ns
-                },
-                it_value = new Interop.timespec
-                {
-
-                    tv_sec = sec,
-                    tv_nsec = ns
-                }
-            };
-
-            int ret = Interop.timerfd_settime(fileDescriptor, 0, itval, null);
-            if (ret != 0)
-                throw new Exception($"Error from timerfd_settime = {Marshal.GetLastWin32Error()}");
-        }
-
-        private long Wait()
-        {
-            // Wait for the next timer event. If we have missed any the number is written to "missed"
-            byte[] buf = new byte[16];
-            var handle = GCHandle.Alloc(buf, GCHandleType.Pinned);
-            nint pointer = handle.AddrOfPinnedObject();
-            int ret = Interop.read(fileDescriptor, pointer, buf.Length);
-            // ret = bytes read
-            long missed = Marshal.ReadInt64(pointer);
-            handle.Free();
-
-            if (ret < 0)
-                throw new Exception($"Error in read = {Marshal.GetLastWin32Error()}");
-
-            return missed;
-        }
-
-        public void Dispose()
-        {
-            cts.Cancel();
-
-            Interop.close(fileDescriptor);
-        }
-
-        public void Start()
-        {
-            isRunning = true;
-        }
-
-        public void Stop()
-        {
-            isRunning = false;
+            _onTick?.Invoke();
+            NanoSleep(_periodMicroseconds);
         }
     }
+
+    private void NanoSleep(long microseconds)
+    {
+        var ts = new timespec
+        {
+            tv_sec = microseconds / 1_000_000,
+            tv_nsec = (microseconds % 1_000_000) * 1000
+        };
+        clock_nanosleep(1, 0, ref ts, IntPtr.Zero);
+    }
+
+    [DllImport("libc.so.6")]
+    private static extern int clock_nanosleep(int clock_id, int flags, ref timespec req, IntPtr rem);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct timespec
+    {
+        public long tv_sec;
+        public long tv_nsec;
+    }
+
+    public void Dispose() => Stop();
 }

@@ -4,7 +4,7 @@ namespace Eyu.Audio.Timer
 {
     public interface ITimer : IDisposable
     {
-        void SetPeriod(int periodMS);
+        void SetPeriod(double milliseconds);
 
         void Start();
 
