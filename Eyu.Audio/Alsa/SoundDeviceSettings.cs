@@ -6,17 +6,17 @@
 public class SoundDeviceSettings
 {
     /// <summary>
-    /// name of the playback device to use. Default: "default"
+    /// Name of the playback device to use. Default: "default"
     /// </summary>
     public string PlaybackDeviceName { get; set; } = "default";
 
     /// <summary>
-    /// name of the recording device to use. Default: "default"
+    /// Name of the recording device to use. Default: "default"
     /// </summary>
     public string RecordingDeviceName { get; set; } = "default";
 
     /// <summary>
-    /// name of the mixer device to use. Default: "default"
+    /// Name of the mixer device to use. Default: "default"
     /// </summary>
     public string MixerDeviceName { get; set; } = "default";
 

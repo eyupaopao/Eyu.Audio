@@ -10,17 +10,17 @@ using NAudio.Wave.SampleProviders;
 using Sample;
 using System.Diagnostics;
 
-//var timmer = new Timer(() =>
-//{
-//    Console.WriteLine("tick");
-//});
-//timmer.SetPeriod(300);
-//timmer.Start();
+var timmer = new Eyu.Audio.Timer.HighPrecisionTimer(() =>
+{
+    Console.WriteLine("tick");
+});
+timmer.SetPeriod(0.1);
+timmer.Start();
 
-//while(true)
-//{
-//    Thread.Sleep(1000);
-//}
+while (true)
+{
+    Thread.Sleep(1000);
+}
 
 //PulseCapture.OpenCancel();
 //var device = PulseCapture.GetDevices();

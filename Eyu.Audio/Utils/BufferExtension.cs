@@ -21,9 +21,9 @@ public static class BufferExtension
     /// <summary>
     /// 高位在前
     /// </summary>
-    /// <param name="buffer"></param>
-    /// <param name="value"></param>
-    /// <param name="offset"></param>
+    /// <param Name="buffer"></param>
+    /// <param Name="value"></param>
+    /// <param Name="offset"></param>
     public static void WriteUInt16BE(this byte[] buffer, ushort value, int offset)
     {
         buffer[offset] = (byte)(value >> 8);
@@ -32,9 +32,9 @@ public static class BufferExtension
     /// <summary>
     /// 高位在后
     /// </summary>
-    /// <param name="buffer"></param>
-    /// <param name="value"></param>
-    /// <param name="offset"></param>
+    /// <param Name="buffer"></param>
+    /// <param Name="value"></param>
+    /// <param Name="offset"></param>
     public static void WriteUInt16LE(this byte[] buffer, ushort value, int offset)
     {
         buffer[offset] = (byte)(value & 0xFF);

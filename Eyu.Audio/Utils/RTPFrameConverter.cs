@@ -96,7 +96,7 @@ namespace Eyu.Audio.Utils
         /// <summary>
         /// 对时
         /// </summary>
-        /// <param name="now"></param>
+        /// <param Name="now"></param>
         public void SetTime(TimeSpan? now = null)
         {
             if (now == null)

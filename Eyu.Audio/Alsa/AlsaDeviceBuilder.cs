@@ -9,7 +9,7 @@ public static class AlsaDeviceBuilder
     /// create and connect a sound device.
     /// use <see cref="SoundDeviceSettings"/> for parameter set up.
     /// </summary>
-    /// <param name="settings">sound device configuration to use</param>
+    /// <param Name="settings">sound device configuration to use</param>
     /// <returns>sound device ready to use</returns>
     public static ISoundDevice Create(SoundDeviceSettings settings) => new UnixSoundDevice(settings);
 }

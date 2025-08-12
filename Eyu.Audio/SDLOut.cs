@@ -98,7 +98,7 @@ public class SDLOut : IWavePlayer
     /// <summary>
     /// 初始化播放器
     /// </summary>
-    /// <param name="inputProvider"></param>
+    /// <param Name="inputProvider"></param>
     /// <exception cref="InvalidOperationException"></exception>
     public unsafe void Init(IWaveProvider inputProvider)
     {
@@ -133,8 +133,8 @@ public class SDLOut : IWavePlayer
     /// <summary>
     /// 构建数据供应器
     /// </summary>
-    /// <param name="sampleChannel"></param>
-    /// <param name="waveFormat"></param>
+    /// <param Name="sampleChannel"></param>
+    /// <param Name="waveFormat"></param>
     private void CreateWaveProvider(SampleChannel sampleChannel, WaveFormat waveFormat)
     {
         ISampleProvider _sampleProvider = sampleChannel;

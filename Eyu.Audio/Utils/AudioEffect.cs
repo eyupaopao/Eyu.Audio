@@ -11,9 +11,9 @@ public static class AudioEffect
     /// <summary>
     /// 将两声道音频的左声道向前移一个相位
     /// </summary>
-    /// <param name="buffer"></param>
-    /// <param name="len"></param>
-    /// <param name="patch"></param>
+    /// <param Name="buffer"></param>
+    /// <param Name="len"></param>
+    /// <param Name="patch"></param>
     /// <returns></returns>
     public static byte[] LeftPhaseShift(this byte[] buffer, int len, byte[] patch = null)
     {

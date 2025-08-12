@@ -34,7 +34,7 @@ public class Timer : ITimer, IDisposable
     /// <summary>
     /// 间隔事件，单位位毫秒，最小值0.001毫秒，但实际上精度可能大于1毫秒。
     /// </summary>
-    /// <param name="milliseconds"></param>
+    /// <param Name="milliseconds"></param>
     /// <exception cref="ArgumentOutOfRangeException"></exception>
     public void SetPeriod(double milliseconds)
     {

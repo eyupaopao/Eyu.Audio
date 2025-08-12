@@ -128,9 +128,9 @@ public class DemoProvider : IWaveProvider, ISampleProvider
     /// <summary>
     /// 读取buffer
     /// </summary>
-    /// <param name="buffer"></param>
-    /// <param name="offset"></param>
-    /// <param name="count"></param>
+    /// <param Name="buffer"></param>
+    /// <param Name="offset"></param>
+    /// <param Name="count"></param>
     /// <returns></returns>
     public int Read(byte[] buffer, int offset, int count)
     {
@@ -145,9 +145,9 @@ public class DemoProvider : IWaveProvider, ISampleProvider
     /// <summary>
     /// 读取float sample
     /// </summary>
-    /// <param name="buffer"></param>
-    /// <param name="offset"></param>
-    /// <param name="count"></param>
+    /// <param Name="buffer"></param>
+    /// <param Name="offset"></param>
+    /// <param Name="count"></param>
     /// <returns></returns>
     public int Read(float[] buffer, int offset, int count)
     {

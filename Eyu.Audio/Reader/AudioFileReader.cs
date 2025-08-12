@@ -19,7 +19,7 @@ public class AudioFileReader : WaveStream, ISampleProvider, IWaveProvider
     /// <summary>
     /// Initializes a new instance of AudioFileReader
     /// </summary>
-    /// <param name="fileName">The file to open</param>
+    /// <param Name="fileName">The file to open</param>
     public AudioFileReader(string fileName)
     {
         lockObject = new object();
@@ -46,7 +46,7 @@ public class AudioFileReader : WaveStream, ISampleProvider, IWaveProvider
     /// Creates the reader stream, supporting all filetypes in the core NAudio library,
     /// and ensuring we are in PCM format
     /// </summary>
-    /// <param name="fileName">File Name</param>
+    /// <param Name="fileName">File Name</param>
     private void CreateReaderStream()
     {
         if (FileName.EndsWith(".wav", StringComparison.OrdinalIgnoreCase))
@@ -125,9 +125,9 @@ public class AudioFileReader : WaveStream, ISampleProvider, IWaveProvider
     /// <summary>
     /// Reads from this wave stream
     /// </summary>
-    /// <param name="buffer">Audio buffer</param>
-    /// <param name="offset">Offset into buffer</param>
-    /// <param name="count">Number of bytes required</param>
+    /// <param Name="buffer">Audio buffer</param>
+    /// <param Name="offset">Offset into buffer</param>
+    /// <param Name="count">Number of bytes required</param>
     /// <returns>Number of bytes read</returns>
     public override int Read(byte[] buffer, int offset, int count)
     {
@@ -145,9 +145,9 @@ public class AudioFileReader : WaveStream, ISampleProvider, IWaveProvider
     /// <summary>
     /// Reads audio from this sample provider
     /// </summary>
-    /// <param name="buffer">Sample buffer</param>
-    /// <param name="offset">Offset into sample buffer</param>
-    /// <param name="count">Number of samples required</param>
+    /// <param Name="buffer">Sample buffer</param>
+    /// <param Name="offset">Offset into sample buffer</param>
+    /// <param Name="count">Number of samples required</param>
     /// <returns>Number of samples read</returns>
     public int Read(float[] buffer, int offset, int count)
     {
@@ -191,7 +191,7 @@ public class AudioFileReader : WaveStream, ISampleProvider, IWaveProvider
     /// <summary>
     /// Disposes this AudioFileReader
     /// </summary>
-    /// <param name="disposing">True if called from Dispose</param>
+    /// <param Name="disposing">True if called from Dispose</param>
     protected override void Dispose(bool disposing)
     {
         if (disposing)

@@ -1,0 +1,243 @@
+﻿using Eyu.Audio.Utils;
+using System;
+
+namespace Eyu.Audio;
+
+public class PTPMessage
+{
+
+    // delay_req 报文 id
+    public static int req_sequenc = 0;
+    public static byte[] PTP_DELAY_REQ()
+    {
+        var length = 52;
+        var buffer = new byte[length];
+        // 每次获取都生成一个新的id，小于 0x10000;
+        req_sequenc = (req_sequenc + 1) % 0x10000;
+        buffer[0] = MessageType.DELAY_REQ;// type
+        buffer[1] = 2;// version
+        buffer[2] = (byte)(length >> 8);
+        buffer[3] = (byte)(length & 0xff);
+        // 写id 
+        buffer[30] = (byte)(req_sequenc >> 8);
+        buffer[31] = (byte)(req_sequenc & 0xff);
+        return buffer;
+    }
+    public byte[] RawData { get; private set; }
+    public PTPMessage(byte[] message)
+    {
+        RawData = message;
+        TransportSpecific = message[0] & 0xF0 >> 4;
+        MessageId = message[0] & 0x0F;
+        Version = message[1] & 0x0F;
+        Length = message.ReadInt16BE(2); // 2,3 byte
+        Domain = message[4];
+        Flags = message.ReadInt16BE(6); // 6,7 byte
+        //var bytes = message[8..16];
+        CorrectionField = message[8..16];// offset 8; 8 bytes
+        SourcePortIdentity = message[20..30]; //offset 20; 10 bytes
+        SequencId = message.ReadInt16BE(30);
+        Control = message[32];
+        LogMeanMessageInterval = message[33];
+        if(MessageId >= MessageType.SYNC && MessageId <= MessageType.PATH_DELAY_FOLLOW_UP)
+        {
+            Timestamp = ((message.ReadInt16BE(34) << 4) + message.ReadLongBE(36)) * 1000000000 + message.ReadLongBE(40);
+            TimeSpan = TimeSpan.FromMicroseconds(Timestamp / 1000);
+        }
+    }
+    /// <summary>
+    /// offset 0; 7-4bit
+    /// 传送相关
+    /// 在使用 UDP/IP 协议封装时：
+    /// <list type="table">
+    /// <item>0 UDP/IPv6 封装时，接收者忽略这个域</item>
+    /// <item>1 UDP/IPv4 封装时，这个域为 1，表示接收者需要将 PTP 事件消息的 UDP 负载填充到 124 字节</item>
+    /// </list>
+    /// 在使用以太网封装时：
+    /// <list type="table">
+    /// <item>0 表示PTP消息由1588协议使用</item>
+    /// <item>1 表示PTP消息由802.1as协议使用</item>
+    /// </list>
+    /// </summary>
+    public int TransportSpecific { get; set; }
+    /// <summary>
+    /// offset 0; 0-3bit
+    /// 消息的类型
+    /// <list type="bullet">
+    /// <item>Event <list type="number">
+    /// <item>SYNC:0x1</item> 
+    /// <item>DELAY_REQ:0x2</item> 
+    /// <item>PATH_DELAY_REQ:0x3</item> 
+    /// <item>PATH_DELAY_RESP:0x4</item> 
+    /// <item>Reserved:0x4– 0x7</item> 
+    /// </list>
+    /// </item>
+    /// <item>General<list type="number">
+    /// <item>FOLLOW_UP:0x8</item>
+    /// <item>DELAY_RESP:0x9</item>
+    /// <item>PATH_DELAY_FOLLOW_UP:0xA</item>
+    /// <item>ANNOUNCE:0xB</item>
+    /// <item>SIGNALING:0xC</item>
+    /// <item>MANAGEMENT:0xD</item>
+    /// <item>Reserved:0xE– 0xF</item>
+    /// </list>
+    /// </item>
+    /// </list>
+    /// </summary>
+    public int MessageId { get; set; }
+    /// <summary>
+    /// offset 1; 0-3bit <br/>
+    /// 消息版本
+    /// </summary>
+    public int Version { get; set; }
+    public int Length { get; set; }
+    public int Domain { get; set; }
+    #region flags
+
+    /// <summary>
+    /// PTPv2 flags 字段包含关于消息类型的进一步详细信息，尤其在使用一步或两步实现的情况下。一步或两步的实现由 flags 字段的前八位中的 TWO_STEP 位控制。
+    /// </summary>
+    public int Flags { get; set; }
+    public bool PTP_LI_61 => (Flags & FlagsField.PTP_LI_61) == FlagsField.PTP_LI_61;
+    public bool PTP_LI_59 => (Flags & FlagsField.PTP_LI_59) == FlagsField.PTP_LI_61;
+    public bool PTP_UTC_REASONABLE => (Flags & FlagsField.PTP_UTC_REASONABLE) == FlagsField.PTP_UTC_REASONABLE;
+    public bool PTP_TIMESCALE => (Flags & FlagsField.PTP_TIMESCALE) == FlagsField.PTP_TIMESCALE;
+    public bool TIME_TRACEABLE => (Flags & FlagsField.TIME_TRACEABLE) == FlagsField.TIME_TRACEABLE;
+    public bool FREQUENCY_TRACEABLE => (Flags & FlagsField.FREQUENCY_TRACEABLE) == FlagsField.FREQUENCY_TRACEABLE;
+    public bool PTP_ALTERNATE_MASTER => (Flags & FlagsField.PTP_ALTERNATE_MASTER) == FlagsField.PTP_ALTERNATE_MASTER;
+    public bool PTP_TWO_STEP => (Flags & FlagsField.PTP_TWO_STEP) == FlagsField.PTP_TWO_STEP;
+    public bool PTP_UNICAST => (Flags & FlagsField.PTP_UNICAST) == FlagsField.PTP_UNICAST;
+    public bool PTP_Profile_Specific_1 => (Flags & FlagsField.PTP_Profile_Specific_1) == FlagsField.PTP_Profile_Specific_1;
+    public bool PTP_Profile_Specific_2 => (Flags & FlagsField.PTP_Profile_Specific_2) == FlagsField.PTP_Profile_Specific_2;
+    public bool PTP_SECURITY => (Flags & FlagsField.PTP_SECURITY) == FlagsField.PTP_SECURITY;
+    #endregion
+    /// <summary>
+    /// 偏移 8, 8byte
+    /// 修正域，各报文都有，主要用在 Sync 报文中， 用于补偿网中的传输时延，E2E 的频率同步
+    /// </summary>
+    public byte[] CorrectionField { get; set; }
+
+    /// <summary>
+    /// 源端口标识符，发送该消息时钟的 ID 和端口号
+    /// offset 20, 10 bytes
+    /// </summary>
+    public byte[] SourcePortIdentity { get; set; }
+
+    /// <summary>
+    /// 序列号 ID，表示消息的序列号，以及关联消息的对应关系
+    /// </summary>
+    public int SequencId { get; set; }
+
+    /// <summary>
+    /// 控制域（IEEE 1588v1），由消息类型决定，定义：
+    /// <list type="table">
+    /// <item>0x00 Sync</item>
+    /// <item>0x01 Delay_Req</item>
+    /// <item>0x02 Follow_Up</item>
+    /// <item>0x03 Delay_Resp</item>
+    /// <item>0x04 Management</item>
+    /// <item>0x05 All others</item>
+    /// <item>0x06-0xff reserved</item>
+    /// </list>
+    /// </summary>
+    public int Control { get; set; }
+
+    /// <summary>
+    /// 消息周期，PTP 消息的发送时间间隔。
+    /// </summary>
+    public int LogMeanMessageInterval { get; set; }
+
+
+    /// <summary>
+    /// <list type="bullet">
+    /// <item>Sync/Delay_Reg/Pdelay_Req: 源时间标签。</item>
+    /// <item>    
+    /// Follow_Up: 精确源时间标签
+    /// <br/>PTP提供传输时间戳的机制，这个时间戳包括事件消息产生的时刻和相应的修正域，
+    /// <br/>通过这个机制保证接收方接收到的是最精确的时间戳。
+    /// <br/>在实际应用中时间戳分布在：originTimestamp或者preciseOriginstamp和correctionField中，由具体的执行决定。
+    /// </item>
+    /// <item>
+    /// Delay_Resp: 接收时间戳。
+    /// </item>
+    /// <item>Pdelay_Resp: 请求接收时间戳。</item>
+    /// <item>
+    /// Pdelay_Resp_Follow_Up: 响应源时间戳
+    /// </item>
+    /// </list>
+    /// </summary>
+    public long Timestamp { get; set; }
+
+    public TimeSpan TimeSpan { get; set; }
+
+    // For ANNOUNCE messages only
+    public byte Priority1 { get; set; }
+    public byte Priority2 { get; set; }
+    public byte ClockClass { get; set; }
+    public byte ClockAccuracy { get; set; }
+    public ushort ClockVariance { get; set; }
+    public byte StepsRemoved { get; set; }
+    public byte TimeSource { get; set; }
+
+    /// <summary>
+    /// <list type="number">    
+    /// <item>Sync/Delay_Reg: 0 byte</item>
+    /// <item>Follow_Up: 0 byte</item>
+    /// <item>Delay_Resp: 10 byte requestingPortIdentity 请求端口标识。</item>
+    /// <item>Pdelay_Req: 10 byte Reserved 保留</item>
+    /// <item>Pdelay_Resp: 10 byte requestingPortIdentity 请求端口标识</item>
+    /// <item>Pdelay_Resp_Follow_Up: 10 byte requestingPortIdentity 请求端口标识</item>
+    /// <item>Signaling: 10 byte targetPortIdentity 目的端口标识。<br/>targetPortIdentity的取值要求为本消息目的地址对应端口的portIdentity。</item>
+    /// <item>managementTLV: m bytes 管理消息。</item>
+    /// </list>
+    /// </summary>
+    public byte[] Payload { get; set; }
+
+    public void ParseAnnounceFields(byte[] message)
+    {
+        if (MessageId == MessageType.ANNOUNCE)
+        {
+            Priority1 = message[44];
+            ClockClass = message[45];
+            ClockAccuracy = message[46];
+            ClockVariance = (ushort)((message[47] << 8) | message[48]);
+            Priority2 = message[49];
+            TimeSource = message[51];
+            StepsRemoved = message[52];
+        }
+    }
+
+
+}
+public static class MessageType
+{
+    // Event message
+    public const int SYNC = 0X0;
+    public const int DELAY_REQ = 0x1;
+    public const int PATH_DELAY_REQ = 0x2;
+    public const int PATH_DELAY_RESP = 0x3;
+    public static bool IsEvent(int value)
+    {
+        return value >= SYNC && value <= PATH_DELAY_RESP;
+    }
+    public static bool IsGeneral(int value)
+    {
+        return value >= FOLLOW_UP && value <= MANAGEMENT;
+    }
+    // General message
+    public const int FOLLOW_UP = 0x8;
+    public const int DELAY_RESP = 0x9;
+    public const int PATH_DELAY_FOLLOW_UP = 0xA;
+    public const int ANNOUNCE = 0xB;
+    public const int SIGNALING = 0xC;
+    public const int MANAGEMENT = 0xD;
+}
+public static class Control
+{
+    public static byte Sync = 0x00;
+    public static byte Delay_Req = 0x01;
+    public static byte Follow_Up = 0x02;
+    public static byte Delay_Resp = 0x03;
+    public static byte Management = 0x04;
+    public static byte AllOthers = 0x05;
+}

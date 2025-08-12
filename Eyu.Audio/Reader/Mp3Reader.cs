@@ -27,7 +27,7 @@ public class Mp3Reader : Mp3FileReaderBase
     /// <summary>
     /// 解码器，支持跨平台。
     /// </summary>
-    /// <param name="mp3Format"></param>
+    /// <param Name="mp3Format"></param>
     /// <returns></returns>
     public static IMp3FrameDecompressor CreateFrameDecompressor(WaveFormat mp3Format)
     {

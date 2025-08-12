@@ -47,56 +47,56 @@ public interface ISoundDevice : IDisposable
     /// <summary>
     /// play a wav file on the playback device
     /// </summary>
-    /// <param name="wavPath">path to wav file</param>
+    /// <param Name="wavPath">path to wav file</param>
 
     void Play(string wavPath);
 
     /// <summary>
     /// play a wav stream
     /// </summary>
-    /// <param name="wavStream">stream of wav data to play</param>
+    /// <param Name="wavStream">stream of wav data to play</param>
     void Play(Stream wavStream);
 
     /// <summary>
     /// play a wav file on the playback device until end of file or cancellation
     /// </summary>
-    /// <param name="wavPath">path to wav file</param>
-    /// <param name="cancellationToken">token to stop playback</param>
+    /// <param Name="wavPath">path to wav file</param>
+    /// <param Name="cancellationToken">token to stop playback</param>
     void Play(string wavPath, CancellationToken cancellationToken);
 
     /// <summary>
     /// play a wav stream until end of stream oder cancellation
     /// </summary>
-    /// <param name="wavStream">stream of wav data to play</param>
-    /// /// <param name="cancellationToken">token to stop playback</param>
+    /// <param Name="wavStream">stream of wav data to play</param>
+    /// /// <param Name="cancellationToken">token to stop playback</param>
     void Play(Stream wavStream, CancellationToken cancellationToken);
 
     /// <summary>
     /// record a wav file to the given path and length 
     /// </summary>
-    /// <param name="second">recording duration in seconds</param>
-    /// <param name="savePath">path to store the file to</param>
+    /// <param Name="second">recording duration in seconds</param>
+    /// <param Name="savePath">path to store the file to</param>
     void Record(uint second, string savePath);
 
     /// <summary>
     /// record wave data to the given stream until cancellation
     /// </summary>
-    /// <param name="outputStream">stream to write wav data to</param>
-    /// <param name="cancellationToken">token to cancel the recording</param>
+    /// <param Name="outputStream">stream to write wav data to</param>
+    /// <param Name="cancellationToken">token to cancel the recording</param>
     void Record(Stream outputStream, CancellationToken cancellationToken);
 
     /// <summary>
     /// record wave data to the given stream with the given duration
     /// </summary>
-    /// <param name="second">recording duration in seconds</param>
-    /// <param name="saveStream">stream to write the wav data to</param>
+    /// <param Name="second">recording duration in seconds</param>
+    /// <param Name="saveStream">stream to write the wav data to</param>
     void Record(uint second, Stream saveStream);
 
     /// <summary>
     /// record wave data using the given callback mehtod every time new audio data is available
     /// </summary>
-    /// <param name="onDataAvailable">callback action called if new audio data is available</param>
-    /// <param name="cancellationToken">token to cancel recording</param>
+    /// <param Name="onDataAvailable">callback action called if new audio data is available</param>
+    /// <param Name="cancellationToken">token to cancel recording</param>
     void Record(Action<byte[]> onDataAvailable, CancellationToken cancellationToken);
 
     void Loopback(Action<byte[]> onDataAvailable,CancellationToken cancellationToken);

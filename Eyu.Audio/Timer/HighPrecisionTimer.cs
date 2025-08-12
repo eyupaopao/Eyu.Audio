@@ -9,6 +9,9 @@ namespace Eyu.Audio.Timer;
 /// </summary>
 public class HighPrecisionTimer : ITimer
 {
+
+
+
     private Thread? _thread;
     private volatile bool _running;
     // 微秒级别
