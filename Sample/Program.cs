@@ -1,5 +1,6 @@
 ﻿// See https://aka.ms/new-console-template for more information
 using Eyu.Audio;
+using Eyu.Audio.AES67;
 using Eyu.Audio.Alsa;
 using Eyu.Audio.Reader;
 using Eyu.Audio.Recorder;
@@ -9,19 +10,12 @@ using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
 using Sample;
 using System.Diagnostics;
+using System.Net;
+using System.Net.NetworkInformation;
+using System.Net.Sockets;
 
-var timmer = new Eyu.Audio.Timer.HighPrecisionTimer(() =>
-{
-    Console.WriteLine("tick");
-});
-timmer.SetPeriod(0.1);
-timmer.Start();
 
-while (true)
-{
-    Thread.Sleep(1000);
-}
-
+TestAes67();
 //PulseCapture.OpenCancel();
 //var device = PulseCapture.GetDevices();
 //if (device.Count() == 0)
@@ -107,4 +101,51 @@ static void AlsaRecord(string[] args)
     var alsa = new AlsaCapture(args[0]);
     //alsa.DataAvailable += Alsa_DataAvailable;
     alsa.StartRecording(args[1]);
+}
+
+static void TestAes67()
+{
+    var network = GetNetWorkInfo();
+    int index = 1;
+    foreach (var item in network)
+    {
+        Console.WriteLine($"输入序号选择网络：{index++}:{item}");
+    }
+    var key = Console.ReadKey();
+    var flag = int.TryParse(key.KeyChar.ToString(), out index);
+    if (flag && index <= network.Count)
+    {
+        var address = IPAddress.Parse(network[index - 1]);
+        Aes67Manager aes67Manager = new Aes67Manager(address);
+        Console.ReadLine();
+    }
+}
+
+static List<string> GetNetWorkInfo()
+{
+    List<string> netWorkList = new();
+    NetworkInterface[] NetworkInterfaces = NetworkInterface.GetAllNetworkInterfaces();
+    //获取所有的网络接口
+    foreach (NetworkInterface NetworkIntf in NetworkInterfaces)                         //针对每张网卡
+    {
+        IPInterfaceProperties IPInterfaceProperties = NetworkIntf.GetIPProperties();    //获取描述此网络接口的配置的对象
+        UnicastIPAddressInformationCollection UnicastIPAddressInformationCollection = IPInterfaceProperties.UnicastAddresses;//获取分配给此接口的单播地址
+        foreach (UnicastIPAddressInformation UnicastIPAddressInformation in UnicastIPAddressInformationCollection) //针对每个IP
+        {
+            if (UnicastIPAddressInformation.Address.AddressFamily == AddressFamily.InterNetwork)//IPv4
+            {
+                string IP = UnicastIPAddressInformation.Address.ToString();
+                if (IP != "127.0.0.1")//不是本地IP
+                {
+                    if (NetworkIntf.OperationalStatus == OperationalStatus.Up)//网卡已连接
+                    {
+                        netWorkList.Add(IP);
+                    }
+                }
+            }
+        }
+    }
+    //var ip = NetworkInterfaces[1].GetIPProperties();
+    return netWorkList;
+    //Net.AddRange(NetworkInterfaces);
 }

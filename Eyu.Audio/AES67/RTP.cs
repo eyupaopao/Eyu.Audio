@@ -48,8 +48,6 @@ public class PcmToRtpConverter
     // 采样位数 (通常16位)
     private readonly int _bitsPerSample;
 
-    // 包间隔(ms)
-    private readonly float _packageTime;
 
     // RTP序列号
     private ushort _sequenceNumber;
@@ -60,8 +58,6 @@ public class PcmToRtpConverter
     // 每个RTP包中的采样数
     private readonly int _samplesPerPacket;
 
-    // 每毫秒采样数
-    private readonly float _samplesPerMs;
 
     // RTP时间戳
     private uint _timestamp;
@@ -85,30 +81,20 @@ public class PcmToRtpConverter
     /// <param name="channels">声道数</param>
     /// <param name="bitsPerSample">采样位数</param>
     /// <param name="packageTime">包间隔(ms)</param>
-    public PcmToRtpConverter(byte payloadType, IWaveProvider waveProvider,PTPClient pTPClient, uint ssrc,
-                            float packageTime = 0.25f)
+    public PcmToRtpConverter(IWaveProvider waveProvider, PTPClient pTPClient, byte payloadType, uint ssrc,int samplesPerPacket)
     {
         _payloadType = payloadType;
         _sampleRate = waveProvider.WaveFormat.SampleRate;
         _channels = waveProvider.WaveFormat.Channels;
         _bitsPerSample = waveProvider.WaveFormat.BitsPerSample;
-        _packageTime = packageTime;
-
-        // 计算每毫秒采样数
-        _samplesPerMs = _sampleRate / 1000f;
-
         // 计算每个RTP包中的采样数（向上取整确保足够的数据）
-        _samplesPerPacket = (int)Math.Ceiling(_samplesPerMs * packageTime);
-
-        // 生成随机SSRC
-        var random = new Random();
-
+        _samplesPerPacket = samplesPerPacket;
         Ssrc = ssrc;
-
         _waveProvider = waveProvider;
         _pTPClient = pTPClient;
 
         // 初始化序列号
+        var random = new Random();
         _sequenceNumber = (ushort)random.Next(0, ushort.MaxValue);
 
         // 初始化时间戳为当前PTPClient时间对应的RTP时间戳
@@ -125,7 +111,7 @@ public class PcmToRtpConverter
         _lastSyncNanoTime = currentNano;
     }
 
-   
+
     public byte[] ReadRtpFrame()
     {
         // 计算每个包需要的字节数：采样数 × 声道数 × 每个采样的字节数

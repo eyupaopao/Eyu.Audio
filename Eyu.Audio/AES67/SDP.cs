@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Net.Sockets;
 using System.Text;
 
 namespace Eyu.Audio.AES67;
@@ -42,14 +43,11 @@ SAP协议头：
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
  */
 
-public class SdpFinder
-{
 
-}
 public class Sdp
 {
-    public const string SdpMuticastAddress = "239.255.255.255";
-    public const int SdpMuticastPort = 9875;
+    #region sdp
+
     /// 1. v=：协议版本，目前为“0”。
     /// 2. o=：所有者/创建者和会话标识符。通常包括用户名、会话ID、会话版本、网络类型、地址类型和地址信息。
     /// 3. s=：会话名称。
@@ -71,25 +69,39 @@ public class Sdp
     /// 19. k=*：加密密钥（可选）。
     /// 20. a=*：零或多个媒体属性行（可选）。
     public string Name { get; private set; }
-    public string LocalAddress { get; private set; }
+    public string SourceIPAddress { get; private set; }
     public string MuticastAddress { get; private set; }
     public int MuticastPort { get; private set; }
     public uint SessId { get; private set; }
     public uint SessVersion { get; private set; }
-    public float Ptime { get; private set; }
+    public float PTimems { get; private set; }
+    public int PayloadType { get; private set; }
     public string PtpMaster { get; private set; }
     public int Domain { get; private set; }
     public string RtpMap { get; private set; }
     public string? Info { get; private set; }
-    public byte[] Bytes { get; private set; }
+    public byte[] SapBytes { get; private set; }
 
     public string AudioEncoding { get; private set; }
     public int SampleRate { get; private set; }
     public int SamplingRate { get; private set; }
     public int Channels { get; private set; }
+    public bool IsDelete { get; private set; }
 
-    private int FrameCount;
+    private int SamplesPerFrame;
+    public DateTime LastReciveTime { get; private set; }
+    public string SdpString { get; private set; }
+    public byte[] SdpBytes { get; private set; }
 
+    #endregion
+    #region sap
+    public byte SapFlags { get; private set; }
+    public int SapVersion => (0b0010_0000 & SapFlags) >> 5;
+    public AddressFamily AddressType => (SapFlags & 0b0001_0000) == 0b0001_0000 ? AddressFamily.InterNetworkV6 : AddressFamily.InterNetwork;
+    public string SapMessage => (SapFlags & 0b0000_0100) == 0b0000_0100 ? "Deletion" : "Announcement";
+    public ushort Crc16 { get; private set; }
+    public string SapPayloadType { get; private set; } = "application/sdp";
+    #endregion
     public Sdp(string name,
                uint sessId,
                string localAddress,
@@ -97,42 +109,39 @@ public class Sdp
                int muticastPort,
                string ptpMaster,
                int domain,
-               float ptime,
-               string encode,
+               float pTimems,
+               int samplesPerPacket,
+               int payloadType,
+               string encoding,
                int sampleRate,
                int channels,
                string? info)
     {
         Name = name;
-        LocalAddress = localAddress;
+        SourceIPAddress = localAddress;
         MuticastAddress = muticastAddress;
         MuticastPort = muticastPort;
         SessId = sessId;
         SessVersion = sessId;
-        Ptime = ptime;
+        PTimems = pTimems;
+        PayloadType = payloadType;
         PtpMaster = ptpMaster;
         Domain = domain;
-        AudioEncoding = encode;
+        AudioEncoding = encoding;
         SampleRate = sampleRate;
         Channels = channels;
-        FrameCount = (int)Math.Round(sampleRate / 1000 * ptime);
-        RtpMap = $"96 {encode}/{sampleRate}/{channels}";
+        SamplesPerFrame = samplesPerPacket;
+        RtpMap = $"{payloadType} {encoding}/{sampleRate}/{channels}";
         //RtpMap = rtpMap;
         Info = info;
         BuildSdpBytes();
-    }
-
-    public Sdp(byte[] sdbBytes)
-    {
-        Bytes = sdbBytes;
-        AnalysisSdp(); // 在构造函数中调用解析方法
     }
 
     private void BuildSdpBytes()
     {
         var sdpConfig = new List<string>{
             $"v=0",                                           // sdp版本号固定为0
-            $"o=- {SessId} {SessVersion} IN IP4 {LocalAddress}",      // 会话源信息
+            $"o=- {SessId} {SessVersion} IN IP4 {SourceIPAddress}",      // 会话源信息
             $"s={Name}",                                      // 会话名称
             $"c=IN IP4 {MuticastAddress}/32",                   // 连接信息
             $"t=0 0",                                         // 活动时间 开始时间和结束时间均为0，表示会话永久有效。
@@ -145,120 +154,247 @@ public class Sdp
         sdpConfig.AddRange(new[] {
             $"a=rtpmap:{RtpMap}",                              // rtp映射：负载类型96：编码格式L24，采样率48000,声道数1。
             $"a=recvonly",                                     // 媒体方向，接收方仅接收。
-            $"a=ptime:{Ptime}",                                // 包时间ms
+            $"a=ptime:{PTimems}",                                // 包时间ms
             $"a=mediaclk:direct=0",                            // 媒体时钟，使用直接时钟同步参数0表示默认配置
             $"a=ts-refclk:ptp=IEEE1588-2008:{PtpMaster}:{Domain}",  //时钟源:域
-            $"a=framecount:{FrameCount}",                      // 包采样数
+            $"a=framecount:{SamplesPerFrame}",                      // 包采样数
         });
-        Bytes = Encoding.Default.GetBytes(string.Join("\r\n", sdpConfig));
+        SdpString = string.Join("\r\n", sdpConfig);
+        SdpBytes = Encoding.Default.GetBytes(SdpString);
+        Crc16 = NullFX.CRC.Crc16.ComputeChecksum(Crc16Algorithm.Standard, SdpBytes);
+
     }
 
-    private void AnalysisSdp()
+    public byte[] BuildSap(bool deletion)
     {
-        if (Bytes == null || Bytes.Length == 0)
-            throw new InvalidOperationException("无法解析空的SDP字节数组");
+        var sapHeader = new byte[8];
+        sapHeader[0] = (byte)(deletion ? 0b0010_1000 : 0b0010_0000);
+        sapHeader[2] = (byte)(Crc16 & 0xFF);
+        sapHeader[3] = (byte)(Crc16 >> 8);
+        byte[] srcIp = IPAddress.Parse(SourceIPAddress).GetAddressBytes();
+        Buffer.BlockCopy(srcIp, 0, sapHeader, 4, 4);
+        var sapContentType = Encoding.UTF8.GetBytes("application/sdp\0");
+        SapBytes = sapHeader.Concat(sapContentType).Concat(SdpBytes).ToArray();
+        return SapBytes;
+    }
 
-        // 将字节数组转换为字符串
-        string sdpString = Encoding.Default.GetString(Bytes);
-        // 按行分割SDP内容
-        string[] lines = sdpString.Split(new[] { "\r\n" }, StringSplitOptions.RemoveEmptyEntries);
 
+
+    public Sdp(byte[] sapBytes)
+    {
+        SapBytes = sapBytes;
+        AnalysisSap();
+        LastReciveTime = DateTime.Now;
+    }
+
+    #region 解析
+
+    private void AnalysisSap()
+    {
+        if (SapBytes == null || SapBytes.Length < 8)
+        {
+            throw new ArgumentException("Invalid SAP bytes: insufficient length");
+        }
+
+        try
+        {
+            // 1. 解析SAP头部 (8字节)
+            ParseSapHeader();
+
+            // 2. 解析内容类型并定位SDP起始位置
+            int sdpStartIndex = ParseContentType();
+
+            // 3. 提取并解析SDP内容
+            ParseSdpContent(sdpStartIndex);
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException("Failed to parse SAP packet", ex);
+        }
+    }
+
+    private void ParseSapHeader()
+    {
+        // 提取源IP地址 (SAP头部4-7字节)
+        byte[] srcIpBytes = new byte[4];
+        Buffer.BlockCopy(SapBytes, 4, srcIpBytes, 0, 4);
+        SapFlags = SapBytes[0];
+        SourceIPAddress = new IPAddress(srcIpBytes).ToString();
+        // 可以根据需要解析其他头部信息（如CRC校验）
+        Crc16 = (ushort)((SapBytes[3] << 8) | SapBytes[2]);
+    }
+
+    private int ParseContentType()
+    {
+        int contentTypeStart = 8;
+
+        // 查找内容类型的null终止符
+        int nullTerminatorIndex = Array.IndexOf(SapBytes, (byte)0, contentTypeStart);
+        if (nullTerminatorIndex == -1)
+        {
+            throw new FormatException("Content type null terminator not found");
+        }
+
+        // 提取并验证内容类型
+        int contentTypeLength = nullTerminatorIndex - contentTypeStart;
+        byte[] contentTypeBytes = new byte[contentTypeLength];
+        Buffer.BlockCopy(SapBytes, contentTypeStart, contentTypeBytes, 0, contentTypeLength);
+
+        string contentType = Encoding.UTF8.GetString(contentTypeBytes);
+        if (contentType != SapPayloadType)
+        {
+            throw new FormatException($"Unexpected content type: {contentType}. Expected: {SapPayloadType}");
+        }
+
+        // 返回SDP内容的起始索引
+        return nullTerminatorIndex + 1;
+    }
+
+    private void ParseSdpContent(int sdpStartIndex)
+    {
+        // 提取SDP字节并转换为字符串
+        int sdpLength = SapBytes.Length - sdpStartIndex;
+        SdpBytes = new byte[sdpLength];
+        Buffer.BlockCopy(SapBytes, sdpStartIndex, SdpBytes, 0, sdpLength);
+        SdpString = Encoding.Default.GetString(SdpBytes);
+
+        // 按行解析SDP内容
+        string[] lines = SdpString.Split(new[] { "\r\n" }, StringSplitOptions.RemoveEmptyEntries);
         foreach (string line in lines)
         {
-            if (string.IsNullOrWhiteSpace(line))
-                continue;
-
-            // 查找每行的类型标识符和值的分隔符
-            int equalsIndex = line.IndexOf('=');
-            if (equalsIndex <= 0)
-                continue;
-
-            string type = line.Substring(0, equalsIndex);
-            string value = line.Substring(equalsIndex + 1);
-
-            // 根据SDP行类型进行解析
-            switch (type)
-            {
-                case "s":
-                    // 解析会话名称
-                    Name = value;
-                    break;
-                case "o":
-                    // 解析会话源信息: o=- {SessId} {SessVersion} IN IP4 {LocalAddress}
-                    string[] originParts = value.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                    if (originParts.Length >= 6)
-                    {
-                        SessId = uint.Parse(originParts[1]);
-                        SessVersion = uint.Parse(originParts[2]);
-                        LocalAddress = originParts[5];
-                    }
-                    break;
-                case "c":
-                    // 解析连接信息: c=IN IP4 {MuticastAddress}/32
-                    string[] connectionParts = value.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                    if (connectionParts.Length >= 3)
-                    {
-                        string addressWithPrefix = connectionParts[2];
-                        int slashIndex = addressWithPrefix.IndexOf('/');
-                        MuticastAddress = slashIndex > 0
-                            ? addressWithPrefix.Substring(0, slashIndex)
-                            : addressWithPrefix;
-                    }
-                    break;
-                case "m":
-                    // 解析媒体信息: m=audio {MuticastPort} RTP/AVP 96
-                    string[] mediaParts = value.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                    if (mediaParts.Length >= 2 && int.TryParse(mediaParts[1], out int port))
-                    {
-                        MuticastPort = port;
-                    }
-                    break;
-                case "i":
-                    // 解析信息字段
-                    Info = value;
-                    break;
-                case "a":
-                    // 解析属性字段
-                    if (value.StartsWith("rtpmap:"))
-                    {
-                        RtpMap = value.Substring("rtpmap:".Length);
-                        var rtpInfo = RtpMap.Split(' ')[1].Split('/');
-                        AudioEncoding = rtpInfo[0];
-                        SampleRate = int.Parse(rtpInfo[1]);
-                        Channels = int.Parse(rtpInfo[2]);
-                    }
-                    else if (value.StartsWith("ptime:"))
-                    {
-                        if (int.TryParse(value.Substring("ptime:".Length), out int ptime))
-                        {
-                            Ptime = ptime;
-                        }
-                    }
-                    else if (value.StartsWith("ts-refclk:ptp=IEEE1588-2008:"))
-                    {
-                        string ptpInfo = value.Substring("ts-refclk:ptp=IEEE1588-2008:".Length);
-                        string[] ptpParts = ptpInfo.Split(new[] { ':' }, StringSplitOptions.RemoveEmptyEntries);
-                        if (ptpParts.Length >= 2)
-                        {
-                            PtpMaster = ptpParts[0];
-                            int.TryParse(ptpParts[1], out int domain);
-                            Domain = domain;
-                        }
-                    }
-                    else if (value.StartsWith("a=framecount:"))
-                    {
-                        if (int.TryParse(value.Substring("a=framecount:".Length), out int frameCount))
-                        {
-                            FrameCount = frameCount;
-                        }
-                    }
-                    break;
-                // 忽略不需要解析的字段
-                case "v":
-                case "t":
-                default:
-                    break;
-            }
+            ParseSdpLine(line);
         }
+    }
+
+    private void ParseSdpLine(string line)
+    {
+        if (string.IsNullOrWhiteSpace(line)) return;
+
+        int colonIndex = line.IndexOf('=');
+        if (colonIndex <= 0) return;
+
+        string field = line.Substring(0, colonIndex);
+        string value = line.Substring(colonIndex + 1).Trim();
+
+        switch (field)
+        {
+            case "v":
+                // 协议版本，通常为0，暂不处理
+                break;
+            case "o":
+                ParseOriginField(value);
+                break;
+            case "s":
+                Name = value;
+                break;
+            case "c":
+                ParseConnectionField(value);
+                break;
+            case "t":
+                // 时间描述，暂不处理
+                break;
+            case "m":
+                ParseMediaField(value);
+                break;
+            case "i":
+                Info = value;
+                break;
+            case "a":
+                ParseAttributeField(value);
+                break;
+        }
+    }
+
+    private void ParseOriginField(string value)
+    {
+        // 格式: - {SessId} {SessVersion} IN IP4 {address}
+        string[] parts = value.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length >= 3)
+        {
+            uint.TryParse(parts[1], out uint sessId);
+            SessId = sessId;
+            uint.TryParse(parts[2], out uint sessVersion);
+            SessVersion = sessVersion;
+        }
+    }
+
+    private void ParseConnectionField(string value)
+    {
+        // 格式: IN IP4 {MuticastAddress}/32
+        string[] parts = value.Split(new[] { ' ', '/' }, StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length >= 3)
+        {
+            MuticastAddress = parts[2];
+        }
+    }
+
+    private void ParseMediaField(string value)
+    {
+        // 格式: audio {MuticastPort} RTP/AVP 96
+        string[] parts = value.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length >= 2)
+        {
+            int.TryParse(parts[1], out int port);
+            MuticastPort = port;
+        }
+    }
+
+    private void ParseAttributeField(string value)
+    {
+        if (value.StartsWith("rtpmap:"))
+        {
+            ParseRtpMap(value.Substring("rtpmap:".Length));
+        }
+        else if (value.StartsWith("ptime:"))
+        {
+            float.TryParse(value.Substring("ptime:".Length), out float ptime);
+            PTimems = ptime;
+        }
+        else if (value.StartsWith("ts-refclk:ptp=IEEE1588-2008:"))
+        {
+            ParsePtpClock(value.Substring("ts-refclk:ptp=IEEE1588-2008:".Length));
+        }
+        else if (value.StartsWith("framecount:"))
+        {
+            int.TryParse(value.Substring("framecount:".Length), out int samples);
+            SamplesPerFrame = samples;
+        }
+        // 可根据需要解析其他属性
+    }
+
+    private void ParseRtpMap(string value)
+    {
+        // 格式: {PayloadType} {AudioEncoding}/{SampleRate}/{Channels}
+        string[] parts = value.Split(new[] { ' ', '/' }, StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length >= 4)
+        {
+            RtpMap = value;
+            int.TryParse(parts[0], out int payloadType);
+            PayloadType = payloadType;
+            AudioEncoding = parts[1];
+            int.TryParse(parts[2], out int sampleRate);
+            SampleRate = sampleRate;
+            SamplingRate = sampleRate; // 同步两个采样率属性
+            int.TryParse(parts[3], out int channels);
+            Channels = channels;
+        }
+    }
+
+    private void ParsePtpClock(string value)
+    {
+        // 格式: {PtpMaster}:{Domain}
+        string[] parts = value.Split(new[] { ':' }, StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length >= 2)
+        {
+            PtpMaster = parts[0];
+            int.TryParse(parts[1], out int domain);
+            Domain = domain;
+        }
+    }
+    #endregion
+
+    public override string ToString()
+    {
+        return SapMessage + " " + SapPayloadType + "\r\n" + SdpString;
     }
 }
