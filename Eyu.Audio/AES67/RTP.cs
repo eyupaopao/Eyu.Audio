@@ -2,7 +2,7 @@
 using System;
 using System.Net;
 
-namespace Eyu.Audio.AES67;
+namespace Eyu.Audio.Aes67;
 /**
         header:
           |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
@@ -81,7 +81,7 @@ public class PcmToRtpConverter
     /// <param name="channels">声道数</param>
     /// <param name="bitsPerSample">采样位数</param>
     /// <param name="packageTime">包间隔(ms)</param>
-    public PcmToRtpConverter(IWaveProvider waveProvider, PTPClient pTPClient, byte payloadType, uint ssrc,int samplesPerPacket)
+    public PcmToRtpConverter(IWaveProvider waveProvider, PTPClient pTPClient, byte payloadType, uint ssrc, int samplesPerPacket)
     {
         _payloadType = payloadType;
         _sampleRate = waveProvider.WaveFormat.SampleRate;
@@ -93,6 +93,9 @@ public class PcmToRtpConverter
         _waveProvider = waveProvider;
         _pTPClient = pTPClient;
 
+        bytesPerSample = _bitsPerSample / 8;
+        bytesNeeded = _samplesPerPacket * _channels * bytesPerSample;
+        buffer = new byte[bytesNeeded];
         // 初始化序列号
         var random = new Random();
         _sequenceNumber = (ushort)random.Next(0, ushort.MaxValue);
@@ -111,16 +114,22 @@ public class PcmToRtpConverter
         _lastSyncNanoTime = currentNano;
     }
 
+    int bytesPerSample;
+    int bytesNeeded;
+    byte[] buffer;
+    int bufferOffset;
 
     public byte[] ReadRtpFrame()
     {
         // 计算每个包需要的字节数：采样数 × 声道数 × 每个采样的字节数
-        int bytesPerSample = _bitsPerSample / 8;
-        int bytesNeeded = _samplesPerPacket * _channels * bytesPerSample;
         // 读取音频数据
-        var buffer = new byte[bytesNeeded];
-        _waveProvider.Read(buffer, 0, buffer.Length);
-
+        var len = _waveProvider.Read(buffer, bufferOffset, buffer.Length);
+        if (len == 0 || len < buffer.Length)
+        {
+            bufferOffset = bufferOffset + len;
+            return [];
+        }
+        bufferOffset = 0;
         // 构建并返回RTP包
         return BuildRtpPacket(buffer);
     }

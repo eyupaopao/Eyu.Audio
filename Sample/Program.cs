@@ -1,6 +1,6 @@
 ﻿// See https://aka.ms/new-console-template for more information
 using Eyu.Audio;
-using Eyu.Audio.AES67;
+using Eyu.Audio.Aes67;
 using Eyu.Audio.Alsa;
 using Eyu.Audio.Reader;
 using Eyu.Audio.Recorder;

@@ -6,7 +6,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 
-namespace Eyu.Audio.AES67;
+namespace Eyu.Audio.Aes67;
 
 
 /*
@@ -165,7 +165,7 @@ public class Sdp
 
     }
 
-    public byte[] BuildSap(bool deletion)
+    public byte[] BuildSap(bool deletion = false)
     {
         var sapHeader = new byte[8];
         sapHeader[0] = (byte)(deletion ? 0b0010_1000 : 0b0010_0000);

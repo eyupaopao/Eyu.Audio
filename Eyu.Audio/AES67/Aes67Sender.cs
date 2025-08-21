@@ -1,9 +1,7 @@
-﻿namespace Eyu.Audio.AES67;
-
+﻿using Eyu.Audio.Provider;
 using Eyu.Audio.Timer;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
-using Silk.NET.SDL;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -13,34 +11,44 @@ using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
+namespace Eyu.Audio.Aes67;
 
-public class Aes67Manager
+public class Aes67AudioManager
 {
-
     public Dictionary<string, Sdp> ExistAes67Sdp = new();
-    private readonly List<IPAddress> localEndPoints;
+    private readonly List<IPAddress> localAddresses = new();
     private readonly List<UdpClient> _sdpFinder = new();
     private readonly List<Aes67Channel> _channels = new();
     private CancellationTokenSource cts = new();
-    private HighPrecisionTimer? HighPrecisionTimer;
-    public Aes67Manager(params IPAddress[] localAddress)
+    private HighPrecisionTimer? highPrecisionTimer;
+    public static Aes67AudioManager Inctance;
+    public static void Start(params IPAddress[] localAddress)
     {
-        this.localEndPoints = [.. localAddress];
+        Inctance = new Aes67AudioManager(localAddress);
+    }
+    public Aes67AudioManager(params IPAddress[] localAddress)
+    {
+        foreach (var item in localAddress)
+        {
+            if (item.AddressFamily == AddressFamily.InterNetworkV6) continue;
+            this.localAddresses.Add(item);
+        }
         ConfigureSdpFinder();
     }
     private void ConfigureSdpFinder()
     {
-        if (localEndPoints.Count == 0)
+        if (localAddresses.Count == 0)
         {
             return;
         }
-        foreach (var address in localEndPoints)
+        foreach (var address in localAddresses)
         {
             ConfigUdpClient(address);
         }
     }
     void ConfigUdpClient(IPAddress address)
     {
+        if (address.AddressFamily == AddressFamily.InterNetworkV6) return;
         var udpClient = new UdpClient(AddressFamily.InterNetwork);
 
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
@@ -48,8 +56,8 @@ public class Aes67Manager
             if (_sdpFinder.Count != 0) { return; }
             udpClient.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
             udpClient.Client.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastInterface, address.GetAddressBytes());
-            udpClient.Client.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(Aes67Const.SdpMuticastIPEndPoint.Address, IPAddress.Any));
-            udpClient.Client.Bind(new IPEndPoint(IPAddress.Any, Aes67Const.SdpMuticastPort));
+            udpClient.Client.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(Aes67Const.SdpMulticastIPEndPoint.Address, IPAddress.Any));
+            udpClient.Client.Bind(new IPEndPoint(address, Aes67Const.SdpMulticastPort));
 
         }
         else
@@ -57,9 +65,9 @@ public class Aes67Manager
 
             udpClient.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
             udpClient.Client.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, 16);
-            udpClient.JoinMulticastGroup(Aes67Const.SdpMuticastIPEndPoint.Address);
+            udpClient.JoinMulticastGroup(Aes67Const.SdpMulticastIPEndPoint.Address);
         }
-        udpClient.Client.Bind(new IPEndPoint(address, Aes67Const.SdpMuticastPort));
+        udpClient.Client.Bind(new IPEndPoint(address, Aes67Const.SdpMulticastPort));
         BeginRecive(udpClient);
 
         _sdpFinder.Add(udpClient);
@@ -94,29 +102,60 @@ public class Aes67Manager
     }
 
 
-    public void StopChannel()
+    public void StopChannel(Aes67Channel channel)
     {
-
+        var key = $"{channel.SessId}{channel.Sdps.Values.First().Crc16}";
+        if (ExistAes67Sdp.ContainsKey(key))
+        {
+            ExistAes67Sdp.Remove(key);
+            if (channel != null)
+            {
+                timmerTick -= channel.SendRtp;
+                _channels.Remove(channel);
+            }
+        }
     }
-
+    private event Action timmerTick;
     private void HandleAes67BroadCast()
     {
-        if (!_channels.Any() && HighPrecisionTimer != null)
+        if (!_channels.Any() && highPrecisionTimer != null)
         {
-            HighPrecisionTimer.Stop();
-            HighPrecisionTimer.Dispose();
-            HighPrecisionTimer = null;
+            highPrecisionTimer.Stop();
+            highPrecisionTimer.Dispose();
+            highPrecisionTimer = null;
             return;
         }
-        foreach (var channel in _channels)
-        {
-            channel.SendRtp();
-            channel.SendSdp();
-        }
+        timmerTick?.Invoke();
+        timmerTick?.Invoke();
+        timmerTick?.Invoke();
+        timmerTick?.Invoke();
+        timmerTick?.Invoke();
+        timmerTick?.Invoke();
+        timmerTick?.Invoke();
+        timmerTick?.Invoke(); 
+        timmerTick?.Invoke();
+        timmerTick?.Invoke();
+        timmerTick?.Invoke();
+        timmerTick?.Invoke();
+        timmerTick?.Invoke();
+        timmerTick?.Invoke();
+        timmerTick?.Invoke();
+        timmerTick?.Invoke();
+        timmerTick?.Invoke();
+        timmerTick?.Invoke();
+        timmerTick?.Invoke();
+        timmerTick?.Invoke();
+        timmerTick?.Invoke();
+        timmerTick?.Invoke();
+        timmerTick?.Invoke();
+        timmerTick?.Invoke();
     }
-    public void StartAes67BroadCast(ISampleProvider sampleProvider, string name, string localAddress)
+    public Aes67Channel StartAes67MulticastCast(IWaveProvider inputWave, string name)
     {
+        ISampleProvider sampleProvider = new SampleChannel(inputWave);
         var waveFormat = new WaveFormat(Aes67Const.DefaultSampleRate, Aes67Const.DefaultBitsPerSample, sampleProvider.WaveFormat.Channels);
+        if (inputWave.WaveFormat.SampleRate != Aes67Const.DefaultSampleRate)
+            sampleProvider = new SampleWaveFormatConversionProvider(new WaveFormat(Aes67Const.DefaultSampleRate, inputWave.WaveFormat.Channels), sampleProvider);
         IWaveProvider waveProvider = null!;
         switch (Aes67Const.DefaultBitsPerSample)
         {
@@ -134,22 +173,26 @@ public class Aes67Manager
         }
         var random = new Random();
         uint ssrc = 0;
+        byte[] ssrcBytes = new byte[4];
         while (true)
         {
-            byte[] ssrcBytes = new byte[4];
             random.NextBytes(ssrcBytes);
             ssrc = BitConverter.ToUInt32(ssrcBytes, 0);
             if (ExistAes67Sdp.Values.Any(s => s.SessId == ssrc) || _channels.Any(c => c.SessId == ssrc)) continue;
             else break;
         }
-        byte[] addressByte = [239, 69, .. IPAddress.Parse(localAddress).GetAddressBytes().SkipLast(2)];
+        byte[] addressByte = [239, 69, 1, 1];
         while (true)
         {
-            var muticastAddres = new IPAddress(addressByte);
+            var muticastAddres = new IPAddress(ssrcBytes);
             if (ExistAes67Sdp.Values.Any(s => s.SourceIPAddress.Equals(muticastAddres.ToString())) || _channels.Any(c => c.MuticastAddress.Equals(muticastAddres.ToString())))
             {
-                addressByte[2]++;
-                if (addressByte[2] > 255) addressByte[2] = 0;
+                addressByte[3]++;
+                if (addressByte[3] > 255)
+                {
+                    addressByte[2]++;
+                    addressByte[3] = 1;
+                }
                 continue;
             }
             break;
@@ -159,18 +202,37 @@ public class Aes67Manager
                                        Aes67Const.DefaultPTimeμs,
                                        name,
                                        ssrc,
-                                       localAddress,
+                                       localAddresses,
                                        new IPAddress(addressByte).ToString(),
                                        Aes67Const.Aes67MuticastPort,
                                        Aes67Const.DefaultEncoding,
                                        null);
-        if (HighPrecisionTimer != null)
+        _channels.Add(channle);
+        if (highPrecisionTimer != null)
         {
-            HighPrecisionTimer = new(HandleAes67BroadCast);
-            HighPrecisionTimer.SetPeriod(0.25);
-            HighPrecisionTimer.Start();
+            highPrecisionTimer = new(HandleAes67BroadCast);
+            highPrecisionTimer.SetPeriod(0.25);
+            highPrecisionTimer.Start();
         }
+        //StartSendThread();
+        timmerTick += channle.SendRtp;
+        return channle;
     }
+    //bool sending;
+    //void StartSendThread()
+    //{
+    //    if (sending) return;
+    //    sending = true;
+    //    new Thread(() =>
+    //    {
+    //        while (_channels.Any())
+    //        {
+    //            timmerTick?.Invoke();
+    //        }
+    //        sending = false;
+    //    }).Start();
+    //}
+
 }
 
 /// <summary>
@@ -181,13 +243,13 @@ public class Aes67Channel : IDisposable
     #region properties
 
     private readonly int _samplesPerPacket;
-    private readonly Sdp _sdp;
-    private readonly UdpClient _udpClient;
+    public readonly Dictionary<IPAddress, Sdp> Sdps = new();
+    private readonly Dictionary<IPAddress, UdpClient> _udpClients = new();
     private readonly PcmToRtpConverter _rtpConverter;
     private readonly IPEndPoint _multicastEndpoint;
     // 包间隔(μs)推荐包间隔：48k 125μs,250μs,333μs; 96k:250μs,1000μs,4000μs
     private readonly uint _pTimeμs;
-    private readonly uint _sendFrameCount;
+    private uint _sendFrameCount;
     private readonly CancellationTokenSource _cts = new CancellationTokenSource();
 
     public uint SessId { get; }
@@ -202,16 +264,18 @@ public class Aes67Channel : IDisposable
                             uint pTimeμs,
                             string name,
                             uint sessId,
-                            string localAddress,
+                            List<IPAddress> localAddresses,
                             string muticastAddress,
                             int muticastPort,
                             string encoding = "L24",
                             string? info = null)
     {
-        _samplesPerPacket = (int)Math.Ceiling(waveProvider.WaveFormat.SampleRate * pTimeμs / 10000000f);
-        _sdp = new Sdp(name,
+        _samplesPerPacket = (int)Math.Ceiling(waveProvider.WaveFormat.SampleRate * pTimeμs / 1000000f);
+        foreach (var address in localAddresses)
+        {
+            var sdp = new Sdp(name,
                        sessId,
-                       localAddress,
+                       address.ToString(),
                        muticastAddress,
                        muticastPort,
                        pTPClient.PtpMaster,
@@ -223,24 +287,27 @@ public class Aes67Channel : IDisposable
                        waveProvider.WaveFormat.SampleRate,
                        waveProvider.WaveFormat.Channels,
                        info);
+            ValidateAes67Parameters(sdp);
+            var udpClient = new UdpClient(new IPEndPoint(address, 0));
+            udpClient.Ttl = 16;
+            _udpClients[address] = udpClient;
+            Sdps[address] = sdp;
+        }
 
         if (waveProvider == null) throw new ArgumentNullException(nameof(waveProvider));
         _pTimeμs = pTimeμs;
         SessId = sessId;
         MuticastAddress = muticastAddress;
         // 初始化多播端点
-        _multicastEndpoint = new IPEndPoint(IPAddress.Parse(_sdp.MuticastAddress), _sdp.MuticastPort);
+        _multicastEndpoint = new IPEndPoint(IPAddress.Parse(MuticastAddress), muticastPort);
         // 验证AES67所需的音频参数
-        ValidateAes67Parameters();
         // 初始化UDP客户端并配置多播选项
-        _udpClient = new UdpClient();
-        ConfigureUdpClient();
         // 初始化RTP转换器
         _rtpConverter = new PcmToRtpConverter(
             payloadType: (byte)Aes67Const.DefaultPayloadType,
             waveProvider: waveProvider,
             pTPClient: pTPClient,
-            ssrc: _sdp.SessId,
+            ssrc: sessId,
             samplesPerPacket: _samplesPerPacket
         );
 
@@ -248,51 +315,26 @@ public class Aes67Channel : IDisposable
 
 
     /// <summary>
-    /// 配置UDP客户端的多播选项
-    /// </summary>
-    private void ConfigureUdpClient()
-    {
-        // 设置多播TTL
-        _udpClient.Ttl = 16;
-
-        // 加入多播组
-        //var multicastAddress = IPAddress.Parse(_sdp.MuticastAddress);
-        //_udpClient.JoinMulticastGroup(multicastAddress);
-
-        // 如果指定了本地地址，绑定到该地址
-        if (!string.IsNullOrEmpty(_sdp.SourceIPAddress) && IPAddress.TryParse(_sdp.SourceIPAddress, out var localAddr))
-        {
-            _udpClient.Client.Bind(new IPEndPoint(localAddr, 0));
-        }
-    }
-
-    /// <summary>
     /// 验证AES67所需的参数
     /// </summary>
-    private void ValidateAes67Parameters()
+    private void ValidateAes67Parameters(Sdp sdp)
     {
-        // AES67要求支持的采样率: 44.1kHz, 48kHz, 88.2kHz, 96kHz, 176.4kHz, 192kHz
-        var supportedSampleRates = new[] { 44100, 48000, 88200, 96000, 176400, 192000 };
-        if (!Array.Exists(supportedSampleRates, rate => rate == _sdp.SampleRate))
+        if (!Array.Exists(Aes67Const.SupportedSampleRates, rate => rate == sdp.SampleRate))
         {
-            throw new ArgumentException($"AES67不支持的采样率: {_sdp.SampleRate}. 支持的采样率: {string.Join(", ", supportedSampleRates)}");
+            throw new ArgumentException($"AES67不支持的采样率: {sdp.SampleRate}. 支持的采样率: {string.Join(", ", Aes67Const.SupportedSampleRates)}");
         }
 
         // AES67要求支持的编码: L16, L24
-        if (_sdp.AudioEncoding != "L16" && _sdp.AudioEncoding != "L24")
+        if (sdp.AudioEncoding != "L16" && sdp.AudioEncoding != "L24")
         {
-            throw new ArgumentException($"AES67不支持的编码格式: {_sdp.AudioEncoding}. 仅支持L16和L24");
+            throw new ArgumentException($"AES67不支持的编码格式: {sdp.AudioEncoding}. 仅支持L16和L24");
         }
 
         // 验证ptime (AES67通常使用0.125ms到100ms)
-        if (_sdp.PTimems <= 0 || _sdp.PTimems > 100)
+        if (sdp.PTimems <= 0 || sdp.PTimems > 100)
         {
-            throw new ArgumentException($"ptime值超出AES67推荐范围 (0.125-100ms): {_sdp.PTimems}");
+            throw new ArgumentException($"ptime值超出AES67推荐范围 (0.125-100ms): {sdp.PTimems}");
         }
-    }
-    public void SendSdp()
-    {
-        _udpClient.SendAsync(_sdp.SapBytes, Aes67Const.SdpMuticastIPEndPoint);
     }
 
     public void SendRtp()
@@ -303,11 +345,24 @@ public class Aes67Channel : IDisposable
             byte[] rtpFrame = _rtpConverter.ReadRtpFrame();
             if (rtpFrame != null && rtpFrame.Length > 0)
             {
-                _udpClient.Send(rtpFrame, rtpFrame.Length, _multicastEndpoint);
+                foreach (var address in _udpClients.Keys)
+                {
+                    _udpClients[address].SendAsync(rtpFrame, _multicastEndpoint);
+                }
+                _sendFrameCount++;
+            }
+            if (_sendFrameCount >= 100)
+            {
+                foreach (var address in _udpClients.Keys)
+                {
+                    _udpClients[address].SendAsync(Sdps[address].BuildSap(), Aes67Const.SdpMulticastIPEndPoint);
+                }
+                _sendFrameCount = 0;
             }
         }
         catch (Exception ex)
         {
+
         }
     }
     /// <summary>
@@ -316,7 +371,5 @@ public class Aes67Channel : IDisposable
     public void Dispose()
     {
         _cts.Dispose();
-        _udpClient?.DropMulticastGroup(IPAddress.Parse(_sdp.MuticastAddress));
-        _udpClient?.Dispose();
     }
 }
