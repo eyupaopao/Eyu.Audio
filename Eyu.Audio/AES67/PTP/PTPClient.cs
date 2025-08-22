@@ -25,19 +25,19 @@ namespace Eyu.Audio
         // 本机地址
         string addr = "127.0.0.1";
         // 最小同步间隔 ms 
-        long syncInterval;
+        ulong syncInterval;
 
         // 参数
         // 参与计算的各个时间戳
-        long t1, t2, t3, t4;
+        ulong t1, t2, t3, t4;
         // 本机时间与服务器时间偏移量
-        public long Offset { get; private set; }
+        public ulong Offset { get; private set; }
         // sync 报文 id
         int sync_seq = 0;
         // delay_req 报文 id
         int req_seq = 0;
         // 最近一次同步时间
-        long lastSync = 0;
+        ulong lastSync = 0;
         static PTPClient instance;
         public static PTPClient Instance => instance ??= new PTPClient();
 
@@ -68,20 +68,14 @@ namespace Eyu.Audio
         public bool IsMaster { get; private set; } = false;
         public string PtpMaster => ptpMaster;
 
-        public void UpdateClockProperties(byte priority1, byte priority2, byte clockClass)
-        {
-            // For future use in BMC algorithm
-            // Currently PTPClient doesn't participate in BMC directly
-        }
-
-        public long UtcNowNanoseconds
+        public ulong UtcNowNanoseconds
         {
             get
             {
                 return PTPTimmer.UtcNowNanoseconds + Offset;
             }
         }
-        public long TimeStampNanoseconds
+        public ulong TimeStampNanoseconds
         {
             get
             {
@@ -117,7 +111,7 @@ namespace Eyu.Audio
         }
 
         // 获取与ptp服务器对时后的时间戳
-        long getCorrentedTime()
+        ulong getCorrentedTime()
         {
             return PTPTimmer.TotalNanoseconds - Offset;
         }
@@ -167,13 +161,8 @@ namespace Eyu.Audio
                     var offset = (t2 - t1 - t4 + t3) * 0.5;
                     if (Debugger.IsAttached)
                         Debug.WriteLine($"同步：offset {offset}ns; delay {delay}ns");
-                    Offset += (long)offset;
-
-                    //Console.WriteLine($"同步时钟：当前 offset = {TimeSpan.FromMicroseconds(offset * 0.001)}");
-                    var lastSync1 = (long)(DateTime.UtcNow - DateTime.UnixEpoch).TotalMilliseconds;
+                    Offset += (ulong)offset;
                     lastSync = getCorrentedTime() / 1000000;
-                    var d = lastSync1 - lastSync;
-                    //check if the clock was synced before
                     if (!sync)
                     {
                         sync = true;
@@ -221,7 +210,7 @@ namespace Eyu.Audio
 
                 //save sequence number
                 sync_seq = message.SequencId;
-                var timestamp = (long)(DateTime.UtcNow - DateTime.UnixEpoch).TotalMilliseconds;
+                var timestamp = (ulong)(DateTime.UtcNow - DateTime.UnixEpoch).TotalMilliseconds;
                 //check if master is two step or not
                 if (message.PTP_TWO_STEP)
                 {

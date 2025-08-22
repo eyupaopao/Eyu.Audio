@@ -41,7 +41,7 @@ public class PTPMessage
         LogMeanMessageInterval = message[33];
         if(MessageId >= MessageType.SYNC && MessageId <= MessageType.PATH_DELAY_FOLLOW_UP)
         {
-            Timestamp = ((message.ReadInt16BE(34) << 4) + message.ReadLongBE(36)) * 1000000000 + message.ReadLongBE(40);
+            Timestamp = (((ulong)message.ReadInt16BE(34) << 4) + (ulong)message.ReadLongBE(36)) * 1000000000 + (ulong)message.ReadLongBE(40);
             TimeSpan = TimeSpan.FromMicroseconds(Timestamp / 1000);
         }
     }
@@ -166,7 +166,7 @@ public class PTPMessage
     /// </item>
     /// </list>
     /// </summary>
-    public long Timestamp { get; set; }
+    public ulong Timestamp { get; set; }
 
     public TimeSpan TimeSpan { get; set; }
 

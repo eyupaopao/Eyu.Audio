@@ -59,10 +59,10 @@ public class PcmToRtpConverter
 
 
     // RTP时间戳
-    private uint _timestamp;
+    private ulong _timestamp;
 
     // 上次同步时间(纳秒)
-    private long _lastSyncNanoTime;
+    private ulong _lastSyncNanoTime;
 
     // 时间同步间隔(包数)
     private const int SyncInterval = 100;
@@ -105,7 +105,7 @@ public class PcmToRtpConverter
     /// </summary>
     private void InitializeTimestamp()
     {
-        long currentNano = _pTPClient.TimeStampNanoseconds;
+        ulong currentNano = _pTPClient.TimeStampNanoseconds;
         _timestamp = NanoToRtpTimestamp(currentNano, _sampleRate);
         _lastSyncNanoTime = currentNano;
     }
@@ -134,7 +134,7 @@ public class PcmToRtpConverter
         else
         {
             // 正常递增时间戳（每个包包含_samplesPerPacket个采样）
-            _timestamp += (uint)_samplesPerPacket;
+            _timestamp += (ulong)_samplesPerPacket;
         }
 
         // RTP包头长度 (12字节) + 负载长度
@@ -153,7 +153,8 @@ public class PcmToRtpConverter
         _sequenceNumber++; // 递增序列号
 
         // 时间戳 (4字节)
-        byte[] timestampBytes = BitConverter.GetBytes(NetworkByteOrder(_timestamp));
+        // RTP时间戳为32位无符号整数，取模防止溢出
+        byte[] timestampBytes = BitConverter.GetBytes(NetworkByteOrder((uint)(_timestamp % uint.MaxValue)));
         timestampBytes.CopyTo(rtpPacket, 4);
 
         // SSRC (4字节)
@@ -171,19 +172,18 @@ public class PcmToRtpConverter
     /// </summary>
     private void SyncWithPTPClient()
     {
-        long currentNano = _pTPClient.TimeStampNanoseconds;
-        long timeElapsedNano = currentNano - _lastSyncNanoTime;
+        ulong currentNano = _pTPClient.TimeStampNanoseconds;
+        ulong timeElapsedNano = currentNano - _lastSyncNanoTime;
 
         // 计算理论上应该经过的采样数
-        double expectedSamples = timeElapsedNano * (_sampleRate / 1e9d);
-        uint expectedTimestamp = (uint)(_timestamp + expectedSamples);
+        var expectedSamples = timeElapsedNano * (_sampleRate / 1e9d);
+        var expectedTimestamp = _timestamp + (ulong)expectedSamples;
 
         // 计算实际当前时间对应的RTP时间戳
-        uint actualTimestamp = NanoToRtpTimestamp(currentNano, _sampleRate);
+        var actualTimestamp = NanoToRtpTimestamp(currentNano, _sampleRate);
 
         // 计算时间差，如果超过阈值则进行校正
-        uint timeDiff = (uint)Math.Abs(expectedTimestamp - actualTimestamp);
-
+        var timeDiff = (int)(expectedTimestamp > actualTimestamp ? expectedTimestamp - actualTimestamp : actualTimestamp - expectedTimestamp);
         // 如果差异超过一个包的采样数，则进行同步校正
         if (timeDiff > _samplesPerPacket)
         {
@@ -192,7 +192,7 @@ public class PcmToRtpConverter
         else
         {
             // 差异不大时，仅轻微调整，避免跳变
-            _timestamp += (uint)_samplesPerPacket;
+            _timestamp += (ulong)_samplesPerPacket;
         }
 
         _lastSyncNanoTime = currentNano;
@@ -203,17 +203,25 @@ public class PcmToRtpConverter
     /// RTP时间戳：从开始计数起经过了几个采样
     /// 例如：48k采样率的音频经过一秒时间的rtp时间戳是48000
     /// </summary>
-    /// <param name="nanoTimestamp">纳秒时间戳（1e-9秒）</param>
+    /// <param name="nanoTimestamp">纳秒时间戳（1e9秒）</param>
     /// <param name="sampleRate">RTP时钟频率（Hz，根据媒体类型确定）</param>
     /// <returns>RTP时间戳（32位无符号整数）</returns>
-    public static uint NanoToRtpTimestamp(long nanoTimestamp, int sampleRate)
+    public static ulong NanoToRtpTimestamp(ulong nanoTimestamp, int sampleRate)
     {
         // 转换公式：RTP时间戳 = 纳秒时间戳 × (时钟频率 / 1e9)
-        double rtpTimestamp = nanoTimestamp * (sampleRate / 1e9d);
-        // RTP时间戳为32位无符号整数，取模防止溢出
-        return (uint)(rtpTimestamp % uint.MaxValue);
+        var seconds = nanoTimestamp / 1000_000_000;
+        var remainingNano = nanoTimestamp % 1000_000_000;
+        // 计算RTP时间戳
+        ulong rtpTimestamp = seconds * (ulong)sampleRate + (nanoTimestamp * (ulong)sampleRate) / 1000_000_000;
+        return rtpTimestamp;
     }
-
+    public static ulong RtpTimestampToNano(ulong rtpTimestamp, int sampleRate)
+    {
+        var seconds = rtpTimestamp / (ulong)sampleRate;
+        var remainingSsmples = rtpTimestamp % (ulong)sampleRate;
+        var nano = seconds * 1000_000_000 + (remainingSsmples * 1000_000_000) / (ulong)sampleRate;
+        return nano;
+    }
     /// <summary>
     /// 将16位无符号整数转换为网络字节序(大端序)
     /// </summary>
@@ -231,6 +239,24 @@ public class PcmToRtpConverter
     {
         if (BitConverter.IsLittleEndian)
             return (uint)IPAddress.HostToNetworkOrder((int)value);
+        return value;
+    }
+    /// <summary>
+    /// 将32位无符号整数转换为网络字节序(大端序)
+    /// </summary>
+    private int NetworkByteOrder(int value)
+    {
+        if (BitConverter.IsLittleEndian)
+            return IPAddress.HostToNetworkOrder(value);
+        return value;
+    }
+    /// <summary>
+    /// 将32位无符号整数转换为网络字节序(大端序)
+    /// </summary>
+    private long NetworkByteOrder(long value)
+    {
+        if (BitConverter.IsLittleEndian)
+            return IPAddress.HostToNetworkOrder(value);
         return value;
     }
 }

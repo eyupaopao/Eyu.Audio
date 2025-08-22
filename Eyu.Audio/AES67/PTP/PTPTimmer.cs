@@ -10,40 +10,40 @@ namespace Eyu.Audio;
 internal class PTPTimmer
 {
     private static readonly Stopwatch stopwatch = Stopwatch.StartNew();
-    private static readonly long initialTicks = DateTime.UtcNow.Ticks;
-    private static readonly double _ticksToNanoseconds = 1000000000.0 / Stopwatch.Frequency;
+    private static readonly ulong initialTicks = (ulong)DateTime.UtcNow.Ticks;
+    private static readonly ulong _ticksToNanoseconds = (ulong)(1000000000 / Stopwatch.Frequency);
     /// <summary>
     /// utc时间；从 0001 年 1 月 1 日开始计时
     /// </summary>
-    public static long UtcNowNanoseconds
+    public static ulong UtcNowNanoseconds
     {
-        get { return initialTicks * 100 + (long)(stopwatch.ElapsedTicks * _ticksToNanoseconds); }
+        get { return initialTicks * 100 + (ulong)stopwatch.ElapsedTicks * _ticksToNanoseconds; }
     }
     /// <summary>
     /// 时间戳；Unix 纪元是 1970 年 1 月 1 日
     /// </summary>
-    public static long TimeStampNanoseconds
+    public static ulong TimeStampNanoseconds
     {
         get
         {
-            return UtcNowNanoseconds - DateTime.UnixEpoch.Ticks * 100;
+            return UtcNowNanoseconds - (ulong)(DateTime.UnixEpoch.Ticks * 100);
         }
     }
 
     /// <summary>
     /// 开始运行到现在的时间
     /// </summary>
-    public static long TotalNanoseconds
+    public static ulong TotalNanoseconds
     {
         get
         {
-            return (long)(stopwatch.ElapsedTicks * _ticksToNanoseconds);
+            return (ulong)stopwatch.ElapsedTicks * _ticksToNanoseconds;
         }
     }
     public static byte[] GetTimestamp()
     {
-        long seconds = TimeStampNanoseconds / 1000_000;
-        long nanoseconds = TimeStampNanoseconds % 1000_1000;
+        ulong seconds = TimeStampNanoseconds / 1000_000;
+        ulong nanoseconds = TimeStampNanoseconds % 1000_1000;
 
         var timestamp = new byte[10];
         timestamp[0] = (byte)(seconds >> 32);
