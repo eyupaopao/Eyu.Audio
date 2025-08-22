@@ -48,7 +48,7 @@ namespace Eyu.Audio
         /// <param Name="domain">选择PTP域</param>
         /// <param Name="callback">连接成功回调函数</param>
         /// <param Name="syncInterval">同步间隔</param>
-        public void Start(string? addr = null, int domain = 0, int syncInterval = 300)
+        public void Start(string? addr = null, int domain = 0, uint syncInterval = 300)
         {
             if (!string.IsNullOrEmpty(addr))
             {

@@ -15,7 +15,7 @@ public static class Aes67Const
     public const int Aes67MuticastPort = 5004;
     public const string Deletion = "Deletion";
     public const string Announcement = "Announcement";
-    public static uint DefaultPTimeμs = 250;
+    public static uint DefaultPTimeμs = 4000;
     public static string DefaultEncoding => $"L{DefaultBitsPerSample}";
     public static int DefaultBitsPerSample = 24;
     public static int DefaultSampleRate = 48000;
@@ -23,5 +23,6 @@ public static class Aes67Const
     /// <summary>
     /// AES67要求支持的采样率: 44.1kHz, 48kHz, 88.2kHz, 96kHz, 176.4kHz, 192kHz
     /// </summary>
-    public static int[] SupportedSampleRates = { 44100, 48000, 88200, 96000, 176400, 192000 };
+    public static int[] SupportedSampleRates = [44100, 48000, 88200, 96000, 176400, 192000];
+    public static uint[] SupportedPTimeμs = [125, 250, 333, 1000, 4000];
 }

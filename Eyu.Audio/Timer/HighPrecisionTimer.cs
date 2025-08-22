@@ -10,20 +10,23 @@ namespace Eyu.Audio.Timer;
 public class HighPrecisionTimer : ITimer, IDisposable
 {
     private Thread? _thread;
-
     private volatile bool _running;
-
     private long _periodMicroseconds;
-
     private readonly Action _onTick;
+
+    // 跟踪下一个预期的执行时间点
+    private long _nextExpectedTick;
 
     public HighPrecisionTimer(Action onTick)
     {
-        _onTick = onTick;
+        _onTick = onTick ?? throw new ArgumentNullException(nameof(onTick));
     }
 
     public void SetPeriod(double milliseconds)
     {
+        if (milliseconds <= 0)
+            throw new ArgumentOutOfRangeException(nameof(milliseconds), "周期必须大于0");
+
         _periodMicroseconds = (long)(milliseconds * 1000.0);
     }
 
@@ -44,7 +47,6 @@ public class HighPrecisionTimer : ITimer, IDisposable
     public void Stop()
     {
         _running = false;
-        _thread?.Join();
     }
 
     private void Run()
@@ -52,19 +54,44 @@ public class HighPrecisionTimer : ITimer, IDisposable
         Stopwatch stopwatch = Stopwatch.StartNew();
         long ticksPerMicrosecond = Stopwatch.Frequency / 1000000;
         long intervalTicks = _periodMicroseconds * ticksPerMicrosecond;
+        int iterations = (int)Math.Max(1, intervalTicks / ticksPerMicrosecond / 10); // 确保至少为1
+
+        // 初始化下一个预期时间点
+        _nextExpectedTick = stopwatch.ElapsedTicks;
+
         while (_running)
         {
-            long elapsedTicks = stopwatch.ElapsedTicks;
-            _onTick?.Invoke();
-            while (stopwatch.ElapsedTicks - elapsedTicks < intervalTicks)
+            // 执行定时任务
+            _onTick.Invoke();
+
+            // 计算下一个预期时间点（基于上一个预期时间点 + 周期）
+            _nextExpectedTick += intervalTicks;
+
+            // 获取当前实际时间
+            long currentTick = stopwatch.ElapsedTicks;
+
+            // 计算需要等待的时间（可能为负，意味着需要立即执行下一次）
+            long waitTime = _nextExpectedTick - currentTick;
+
+            // 如果需要等待，执行等待逻辑
+            if (waitTime > 0 && _running)
             {
-                Thread.SpinWait(1);
+                long waitUntil = currentTick + waitTime;
+                while (stopwatch.ElapsedTicks < waitUntil && _running)
+                {
+                    Thread.SpinWait(iterations);
+                }
             }
         }
+
+        stopwatch.Stop();
+        _thread?.Join();
     }
 
     public void Dispose()
     {
         Stop();
+        //_thread?.Join();
+        GC.SuppressFinalize(this);
     }
 }
