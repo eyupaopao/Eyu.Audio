@@ -8,8 +8,10 @@ using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Numerics;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 namespace Eyu.Audio.Aes67;
 
@@ -126,51 +128,11 @@ public class Aes67AudioManager
             return;
         }
         timmerTick?.Invoke();
-        timmerTick?.Invoke();
-        timmerTick?.Invoke();
-        timmerTick?.Invoke();
-        timmerTick?.Invoke();
-        timmerTick?.Invoke();
-        timmerTick?.Invoke();
-        timmerTick?.Invoke(); 
-        timmerTick?.Invoke();
-        timmerTick?.Invoke();
-        timmerTick?.Invoke();
-        timmerTick?.Invoke();
-        timmerTick?.Invoke();
-        timmerTick?.Invoke();
-        timmerTick?.Invoke();
-        timmerTick?.Invoke();
-        timmerTick?.Invoke();
-        timmerTick?.Invoke();
-        timmerTick?.Invoke();
-        timmerTick?.Invoke();
-        timmerTick?.Invoke();
-        timmerTick?.Invoke();
-        timmerTick?.Invoke();
-        timmerTick?.Invoke();
     }
-    public Aes67Channel StartAes67MulticastCast(IWaveProvider inputWave, string name)
+
+    public Aes67Channel StartAes67MulticastCast(WaveFormat inputWaveFormat, string name)
     {
-        ISampleProvider sampleProvider = new SampleChannel(inputWave);
-        var waveFormat = new WaveFormat(Aes67Const.DefaultSampleRate, Aes67Const.DefaultBitsPerSample, sampleProvider.WaveFormat.Channels);
-        if (inputWave.WaveFormat.SampleRate != Aes67Const.DefaultSampleRate)
-            sampleProvider = new SampleWaveFormatConversionProvider(new WaveFormat(Aes67Const.DefaultSampleRate, inputWave.WaveFormat.Channels), sampleProvider);
-        IWaveProvider waveProvider = null!;
-        switch (Aes67Const.DefaultBitsPerSample)
-        {
-            case 16:
-                waveProvider = new SampleToWaveProvider16(sampleProvider);
-                break;
-            case 24:
-                waveProvider = new SampleToWaveProvider24(sampleProvider);
-                break;
-            case 32:
-                waveProvider = new SampleToWaveProvider(sampleProvider);
-                break;
-            default:
-                throw new ArgumentException($"不支持的编码格式：{Aes67Const.DefaultBitsPerSample}");
-        }
+        var waveFormat = WaveFormat.CreateCustomFormat(WaveFormatEncoding.Pcm, Aes67Const.DefaultSampleRate, inputWaveFormat.Channels, inputWaveFormat.AverageBytesPerSecond, inputWaveFormat.BlockAlign, Aes67Const.DefaultBitsPerSample);
         var random = new Random();
         uint ssrc = 0;
         byte[] ssrcBytes = new byte[4];
@@ -197,18 +159,20 @@ public class Aes67AudioManager
             }
             break;
         }
-        var channle = new Aes67Channel(waveProvider,
-                                       PTPClient.Instance,
-                                       Aes67Const.DefaultPTimeμs,
-                                       name,
-                                       ssrc,
-                                       localAddresses,
-                                       new IPAddress(addressByte).ToString(),
-                                       Aes67Const.Aes67MuticastPort,
-                                       Aes67Const.DefaultEncoding,
-                                       null);
+        var channle = new Aes67Channel(
+            inputWaveFormat,
+            waveFormat,
+            PTPClient.Instance,
+            Aes67Const.DefaultPTimeμs,
+            name,
+            ssrc,
+            localAddresses,
+            new IPAddress(addressByte).ToString(),
+            Aes67Const.Aes67MuticastPort,
+            Aes67Const.DefaultEncoding,
+            null);
         _channels.Add(channle);
-        if (highPrecisionTimer != null)
+        if (highPrecisionTimer == null)
         {
             highPrecisionTimer = new(HandleAes67BroadCast);
             highPrecisionTimer.SetPeriod(0.25);
@@ -218,21 +182,6 @@ public class Aes67AudioManager
         timmerTick += channle.SendRtp;
         return channle;
     }
-    //bool sending;
-    //void StartSendThread()
-    //{
-    //    if (sending) return;
-    //    sending = true;
-    //    new Thread(() =>
-    //    {
-    //        while (_channels.Any())
-    //        {
-    //            timmerTick?.Invoke();
-    //        }
-    //        sending = false;
-    //    }).Start();
-    //}
-
 }
 
 /// <summary>
@@ -247,11 +196,15 @@ public class Aes67Channel : IDisposable
     private readonly Dictionary<IPAddress, UdpClient> _udpClients = new();
     private readonly PcmToRtpConverter _rtpConverter;
     private readonly IPEndPoint _multicastEndpoint;
+    private readonly WaveFormat _inputWaveFormat;
+    private readonly WaveFormat _outputWaveFormat;
+
     // 包间隔(μs)推荐包间隔：48k 125μs,250μs,333μs; 96k:250μs,1000μs,4000μs
     private readonly uint _pTimeμs;
     private uint _sendFrameCount;
     private readonly CancellationTokenSource _cts = new CancellationTokenSource();
-
+    BufferedWaveProvider _inputProvider;
+    IWaveProvider _outputProvider;
     public uint SessId { get; }
     public string MuticastAddress { get; }
     #endregion
@@ -259,18 +212,20 @@ public class Aes67Channel : IDisposable
     /// 构造AES67广播发送器
     /// </summary>
     /// <param name="sdp">SDP会话描述</param>
-    public Aes67Channel(IWaveProvider waveProvider,
-                            PTPClient pTPClient,
-                            uint pTimeμs,
-                            string name,
-                            uint sessId,
-                            List<IPAddress> localAddresses,
-                            string muticastAddress,
-                            int muticastPort,
-                            string encoding = "L24",
-                            string? info = null)
+    public Aes67Channel(
+        WaveFormat inputWaveFormat,
+        WaveFormat waveFormat,
+        PTPClient pTPClient,
+        uint pTimeμs,
+        string name,
+        uint sessId,
+        List<IPAddress> localAddresses,
+        string muticastAddress,
+        int muticastPort,
+        string encoding = "L24",
+        string? info = null)
     {
-        _samplesPerPacket = (int)Math.Ceiling(waveProvider.WaveFormat.SampleRate * pTimeμs / 1000000f);
+        _samplesPerPacket = (int)Math.Ceiling(waveFormat.SampleRate * pTimeμs / 1000000f);
         foreach (var address in localAddresses)
         {
             var sdp = new Sdp(name,
@@ -284,8 +239,8 @@ public class Aes67Channel : IDisposable
                        _samplesPerPacket,
                        Aes67Const.DefaultPayloadType,
                        encoding,
-                       waveProvider.WaveFormat.SampleRate,
-                       waveProvider.WaveFormat.Channels,
+                       waveFormat.SampleRate,
+                       waveFormat.Channels,
                        info);
             ValidateAes67Parameters(sdp);
             var udpClient = new UdpClient(new IPEndPoint(address, 0));
@@ -293,8 +248,8 @@ public class Aes67Channel : IDisposable
             _udpClients[address] = udpClient;
             Sdps[address] = sdp;
         }
-
-        if (waveProvider == null) throw new ArgumentNullException(nameof(waveProvider));
+        this._inputWaveFormat = inputWaveFormat;
+        this._outputWaveFormat = waveFormat;
         _pTimeμs = pTimeμs;
         SessId = sessId;
         MuticastAddress = muticastAddress;
@@ -304,15 +259,44 @@ public class Aes67Channel : IDisposable
         // 初始化UDP客户端并配置多播选项
         // 初始化RTP转换器
         _rtpConverter = new PcmToRtpConverter(
-            payloadType: (byte)Aes67Const.DefaultPayloadType,
-            waveProvider: waveProvider,
-            pTPClient: pTPClient,
-            ssrc: sessId,
-            samplesPerPacket: _samplesPerPacket
+            pTPClient,
+            waveFormat.SampleRate, waveFormat.BitsPerSample, waveFormat.Channels,
+            (byte)Aes67Const.DefaultPayloadType,
+            sessId,
+            _samplesPerPacket
         );
+        BuildProvider();
 
     }
 
+    void BuildProvider()
+    {
+        _inputProvider = new BufferedWaveProvider(_inputWaveFormat);
+        if (_inputWaveFormat.SampleRate == _outputWaveFormat.SampleRate && _inputWaveFormat.BitsPerSample == _outputWaveFormat.BitsPerSample)
+        {
+            _outputProvider = _inputProvider;
+            return;
+        }
+        ISampleProvider sampleProvider = new SampleChannel(_inputProvider);
+        var waveFormat = new WaveFormat(Aes67Const.DefaultSampleRate, Aes67Const.DefaultBitsPerSample, sampleProvider.WaveFormat.Channels);
+        if (_inputProvider.WaveFormat.SampleRate != Aes67Const.DefaultSampleRate)
+            sampleProvider = new SampleWaveFormatConversionProvider(new WaveFormat(Aes67Const.DefaultSampleRate, _inputProvider.WaveFormat.Channels), sampleProvider);
+        switch (Aes67Const.DefaultBitsPerSample)
+        {
+            case 16:
+                _outputProvider = new SampleToWaveProvider16(sampleProvider);
+                break;
+            case 24:
+                _outputProvider = new SampleToWaveProvider24(sampleProvider);
+                break;
+            case 32:
+                _outputProvider = new SampleToWaveProvider(sampleProvider);
+                break;
+            default:
+                throw new ArgumentException($"不支持的编码格式：{Aes67Const.DefaultBitsPerSample}");
+        }
+        bytesPerPacket = _samplesPerPacket * waveFormat.Channels * (waveFormat.BitsPerSample / 8);
+    }
 
     /// <summary>
     /// 验证AES67所需的参数
@@ -337,14 +321,64 @@ public class Aes67Channel : IDisposable
         }
     }
 
+    public void Write(byte[] bytes, int offset, int count)
+    {
+        try
+        {
+
+            if (bytes.Length < offset) return;
+            if (bytes.Length - offset < count)
+                count = bytes.Length - offset;
+            _inputProvider.AddSamples(bytes, offset, count);
+            buildFrames();
+
+        }
+        catch
+        {
+
+        }
+    }
+
+    void buildFrames()
+    {
+        var ratio = _outputWaveFormat.SampleRate * _outputWaveFormat.BitsPerSample * _outputWaveFormat.Channels / (float)(_inputWaveFormat.SampleRate * _inputWaveFormat.BitsPerSample * _inputWaveFormat.Channels);
+        var outputbufferSize = (int)(_inputProvider.BufferedBytes * ratio);
+        if (outputbufferSize < bytesPerPacket)
+        {
+            return; // 不足一个包
+        }
+        // 确保输出缓冲区大小是包大小的整数倍
+        outputbufferSize = outputbufferSize - (outputbufferSize % bytesPerPacket);
+        var outputBuffer = new byte[outputbufferSize];
+        var len = _outputProvider.Read(outputBuffer, 0, outputbufferSize);
+        int offset = 0;
+        while (offset < len)
+        {
+            var frame = new byte[bytesPerPacket];
+            if (len - offset < bytesPerPacket)
+            {
+                Array.Copy(outputBuffer, offset, frame, 0, len - offset);
+                _packets.Writer.TryWrite(frame);
+                break; // 不足一个包，直接写入
+            }
+            Array.Copy(outputBuffer, offset, frame, 0, bytesPerPacket);
+            _packets.Writer.TryWrite(frame);
+            offset += bytesPerPacket;
+        }
+    }
+
+    Channel<byte[]> _packets = Channel.CreateUnbounded<byte[]>();
+    private int bytesPerPacket;
+
     public void SendRtp()
     {
         try
         {
             // 从转换器获取RTP包并发送
-            byte[] rtpFrame = _rtpConverter.ReadRtpFrame();
-            if (rtpFrame != null && rtpFrame.Length > 0)
+            var flag = _packets.Reader.TryRead(out var packet);
+            if (flag && packet != null && packet.Length > 0)
             {
+                var rtpFrame = _rtpConverter.BuildRtpPacket(packet, 0, packet.Length);
                 foreach (var address in _udpClients.Keys)
                 {
                     _udpClients[address].SendAsync(rtpFrame, _multicastEndpoint);

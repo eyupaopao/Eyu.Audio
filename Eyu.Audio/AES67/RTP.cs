@@ -31,7 +31,7 @@ namespace Eyu.Audio.Aes67;
 /// </summary>
 public class PcmToRtpConverter
 {
-    private IWaveProvider _waveProvider;
+    //private IWaveProvider _waveProvider;
 
     // RTP版本 (RFC 3550规定为2)
     private const byte RtpVersion = 2;
@@ -47,7 +47,6 @@ public class PcmToRtpConverter
 
     // 采样位数 (通常16位)
     private readonly int _bitsPerSample;
-
 
     // RTP序列号
     private ushort _sequenceNumber;
@@ -81,21 +80,18 @@ public class PcmToRtpConverter
     /// <param name="channels">声道数</param>
     /// <param name="bitsPerSample">采样位数</param>
     /// <param name="packageTime">包间隔(ms)</param>
-    public PcmToRtpConverter(IWaveProvider waveProvider, PTPClient pTPClient, byte payloadType, uint ssrc, int samplesPerPacket)
+    public PcmToRtpConverter(PTPClient pTPClient, int sampleRate, int bitsPerSample, int channels, byte payloadType, uint ssrc, int samplesPerPacket)
     {
         _payloadType = payloadType;
-        _sampleRate = waveProvider.WaveFormat.SampleRate;
-        _channels = waveProvider.WaveFormat.Channels;
-        _bitsPerSample = waveProvider.WaveFormat.BitsPerSample;
+        _sampleRate = sampleRate;
+        _channels = channels;
+        _bitsPerSample = bitsPerSample;
         // 计算每个RTP包中的采样数（向上取整确保足够的数据）
         _samplesPerPacket = samplesPerPacket;
         Ssrc = ssrc;
-        _waveProvider = waveProvider;
+        //_waveProvider = waveProvider;
         _pTPClient = pTPClient;
 
-        bytesPerSample = _bitsPerSample / 8;
-        bytesNeeded = _samplesPerPacket * _channels * bytesPerSample;
-        buffer = new byte[bytesNeeded];
         // 初始化序列号
         var random = new Random();
         _sequenceNumber = (ushort)random.Next(0, ushort.MaxValue);
@@ -114,33 +110,20 @@ public class PcmToRtpConverter
         _lastSyncNanoTime = currentNano;
     }
 
-    int bytesPerSample;
-    int bytesNeeded;
-    byte[] buffer;
-    int bufferOffset;
-
-    public byte[] ReadRtpFrame()
-    {
-        // 计算每个包需要的字节数：采样数 × 声道数 × 每个采样的字节数
-        // 读取音频数据
-        var len = _waveProvider.Read(buffer, bufferOffset, buffer.Length);
-        if (len == 0 || len < buffer.Length)
-        {
-            bufferOffset = bufferOffset + len;
-            return [];
-        }
-        bufferOffset = 0;
-        // 构建并返回RTP包
-        return BuildRtpPacket(buffer);
-    }
 
     /// <summary>
     /// 构建RTP包
     /// </summary>
     /// <param name="payload">音频负载数据</param>
     /// <returns>完整的RTP包</returns>
-    private byte[] BuildRtpPacket(byte[] payload)
+    public byte[] BuildRtpPacket(byte[] payload, int offset, int count)
     {
+        //if (payload.Length > offset) return [];
+        //var count = bytesNeeded;
+        if (payload.Length - offset < count)
+        {
+            count = payload.Length - offset;
+        }
         // 定期与PTP时间同步，防止漂移
         _packetCounter++;
         if (_packetCounter >= SyncInterval)
@@ -155,7 +138,7 @@ public class PcmToRtpConverter
         }
 
         // RTP包头长度 (12字节) + 负载长度
-        int packetSize = 12 + payload.Length;
+        int packetSize = 12 + count;
         byte[] rtpPacket = new byte[packetSize];
 
         // 版本(2位) + 填充(1位) + 扩展(1位) + CSRC计数(4位)
@@ -178,7 +161,7 @@ public class PcmToRtpConverter
         ssrcBytes.CopyTo(rtpPacket, 8);
 
         // 负载数据
-        Array.Copy(payload, 0, rtpPacket, 12, payload.Length);
+        Array.Copy(payload, offset, rtpPacket, 12, count);
 
         return rtpPacket;
     }

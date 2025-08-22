@@ -134,7 +134,7 @@ public class SDLOut : IWavePlayer
     /// 构建数据供应器
     /// </summary>
     /// <param Name="sampleChannel"></param>
-    /// <param Name="waveFormat"></param>
+    /// <param Name="_outputWaveFormat"></param>
     private void CreateWaveProvider(SampleChannel sampleChannel, WaveFormat waveFormat)
     {
         ISampleProvider _sampleProvider = sampleChannel;

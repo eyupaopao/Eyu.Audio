@@ -31,7 +31,7 @@ namespace Eyu.Audio.Provider
                 throw new ArgumentException("Input source provider must be 32 bit", nameof(sourceProvider));
 
             waveFormat = new WaveFormat(sourceProvider.WaveFormat.SampleRate, 16, sourceProvider.WaveFormat.Channels);
-            //waveFormat = new WaveFormat(48000, 16, 2);
+            //_outputWaveFormat = new WaveFormat(48000, 16, 2);
 
             this.sourceProvider = sourceProvider;
             volume = 1.0f;
