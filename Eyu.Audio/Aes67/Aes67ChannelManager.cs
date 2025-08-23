@@ -23,7 +23,8 @@ public class Aes67ChannelManager
     private readonly List<Aes67Channel> _channels = new();
     private CancellationTokenSource cts = new();
     private HighPrecisionTimer? highPrecisionTimer;
-    public static Aes67ChannelManager Inctance;
+    private event Action? timmerTick;
+    public static Aes67ChannelManager Inctance = null!;
     public static void Start(params IPAddress[] localAddress)
     {
         Inctance = new Aes67ChannelManager(localAddress);
@@ -61,11 +62,9 @@ public class Aes67ChannelManager
             udpClient.Client.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastInterface, address.GetAddressBytes());
             udpClient.Client.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(Aes67Const.SdpMulticastIPEndPoint.Address, IPAddress.Any));
             udpClient.Client.Bind(new IPEndPoint(address, Aes67Const.SdpMulticastPort));
-
         }
         else
         {
-
             udpClient.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
             udpClient.Client.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, 16);
             udpClient.JoinMulticastGroup(Aes67Const.SdpMulticastIPEndPoint.Address);
@@ -87,9 +86,7 @@ public class Aes67ChannelManager
                     if (result.RemoteEndPoint.Equals(udpClient.Client.LocalEndPoint as IPEndPoint))
                         continue;
                     var sdp = new Sdp(result.Buffer);
-                    if (Debugger.IsAttached)
-                        Console.WriteLine(sdp);
-                    var key = $"{sdp.SessId}{sdp.Crc16}";
+                    var key = $"{sdp.SessId}{sdp.MessageHash}";
                     if (sdp.SapMessage == Aes67Const.Deletion && ExistAes67Sdp.TryGetValue(key, out var exist))
                     {
                         ExistAes67Sdp.Remove(key);
@@ -128,7 +125,7 @@ public class Aes67ChannelManager
 
     public void StopChannel(Aes67Channel channel)
     {
-        var key = $"{channel.SessId}{channel.Sdps.Values.First().Crc16}";
+        var key = $"{channel.SessId}{channel.Sdps.Values.First().MessageHash}";
         if (ExistAes67Sdp.ContainsKey(key))
         {
             ExistAes67Sdp.Remove(key);
@@ -141,15 +138,19 @@ public class Aes67ChannelManager
             _channels.Remove(channel);
         }
     }
-    private event Action timmerTick;
     private void HandleAes67BroadCast()
     {
         timmerTick?.Invoke();
     }
-
-    public Aes67Channel StartAes67MulticastCast(WaveFormat inputWaveFormat, string name)
-    {
-        var waveFormat = WaveFormat.CreateCustomFormat(WaveFormatEncoding.Pcm, Aes67Const.DefaultSampleRate, inputWaveFormat.Channels, inputWaveFormat.AverageBytesPerSecond, inputWaveFormat.BlockAlign, Aes67Const.DefaultBitsPerSample);
+    /// <summary>
+    /// 创建广播
+    /// </summary>
+    /// <param name="inputWaveFormat">数据格式</param>
+    /// <param name="name">广播名称</param>
+    /// <param name="duration">时间长度(秒)</param>
+    /// <returns></returns>
+    public Aes67Channel CreateMulticastcastChannel(WaveFormat inputWaveFormat, string name, int duration = 0)
+    { 
         var random = new Random();
         uint ssrc = 0;
         byte[] ssrcBytes = new byte[4];
@@ -163,8 +164,8 @@ public class Aes67ChannelManager
         byte[] addressByte = [239, 69, 1, 1];
         while (true)
         {
-            var muticastAddres = new IPAddress(ssrcBytes);
-            if (ExistAes67Sdp.Values.Any(s => s.SourceIPAddress.Equals(muticastAddres.ToString())) || _channels.Any(c => c.MuticastAddress.Equals(muticastAddres.ToString())))
+            var multicastAddress = new IPAddress(ssrcBytes);
+            if (ExistAes67Sdp.Values.Any(s => s.SourceIPAddress.Equals(multicastAddress.ToString())) || _channels.Any(c => c.MuticastAddress.Equals(multicastAddress.ToString())))
             {
                 addressByte[3]++;
                 if (addressByte[3] > 255)
@@ -178,15 +179,12 @@ public class Aes67ChannelManager
         }
         var channle = new Aes67Channel(
             inputWaveFormat,
-            waveFormat,
-            PTPClient.Instance,
-            Aes67Const.DefaultPTimeμs,
-            name,
             ssrc,
             localAddresses,
-            new IPAddress(addressByte).ToString(),
+            new IPAddress(addressByte),
             Aes67Const.Aes67MuticastPort,
-            Aes67Const.DefaultEncoding,
+            name,
+            duration,
             null);
         _channels.Add(channle);
         if (highPrecisionTimer == null)
@@ -195,7 +193,6 @@ public class Aes67ChannelManager
             highPrecisionTimer.SetPeriod(Aes67Const.DefaultPTimeμs / 1000f);
             highPrecisionTimer.Start();
         }
-        //StartSendThread();
         timmerTick += channle.SendRtp;
         return channle;
     }

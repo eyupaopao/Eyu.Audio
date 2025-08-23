@@ -86,6 +86,9 @@ public class Sdp
     public int SampleRate { get; private set; }
     public int SamplingRate { get; private set; }
     public int Channels { get; private set; }
+    public int Duration { get; private set; }
+    public ulong StartTime { get; private set; } = 0;
+    public ulong StopTime { get; private set; } = 0;
     public bool IsDelete { get; private set; }
 
     private int SamplesPerFrame;
@@ -95,11 +98,14 @@ public class Sdp
 
     #endregion
     #region sap
-    public byte SapFlags { get; private set; }
+    public byte SapFlags { get; private set; } = 0b0010_0000;
     public int SapVersion => (0b0010_0000 & SapFlags) >> 5;
     public AddressFamily AddressType => (SapFlags & 0b0001_0000) == 0b0001_0000 ? AddressFamily.InterNetworkV6 : AddressFamily.InterNetwork;
     public string SapMessage => (SapFlags & 0b0000_0100) == 0b0000_0100 ? "Deletion" : "Announcement";
-    public ushort Crc16 { get; private set; }
+    public ushort MessageHash { get; private set; }
+    private byte[] srcIp;
+    public int AuthLen { get; private set; } = 0;
+    public byte[] AuthData { get; private set; } = [];
     public string SapPayloadType { get; private set; } = "application/sdp";
     #endregion
     public Sdp(string name,
@@ -111,10 +117,10 @@ public class Sdp
                int domain,
                float pTimems,
                int samplesPerPacket,
-               int payloadType,
                string encoding,
                int sampleRate,
                int channels,
+               int duration,
                string? info)
     {
         Name = name;
@@ -124,54 +130,69 @@ public class Sdp
         SessId = sessId;
         SessVersion = sessId;
         PTimems = pTimems;
-        PayloadType = payloadType;
+        PayloadType = Aes67Const.DefaultPayloadType;
         PtpMaster = ptpMaster;
         Domain = domain;
         AudioEncoding = encoding;
         SampleRate = sampleRate;
         Channels = channels;
+        Duration = duration;
+        if (Duration == 0)
+        {
+            StartTime = 0;
+            StopTime = 0;
+        }
+        else
+        {
+            StartTime = PTPClient.Instance.TimeStampNanoseconds / 1000_000_000;
+            StopTime = StartTime + (ulong)Duration;
+        }
         SamplesPerFrame = samplesPerPacket;
-        RtpMap = $"{payloadType} {encoding}/{sampleRate}/{channels}";
+        RtpMap = $"{PayloadType} {encoding}/{sampleRate}/{channels}";
         //RtpMap = rtpMap;
         Info = info;
+        srcIp = IPAddress.Parse(SourceIPAddress).GetAddressBytes();
+        SapFlags = 0b0010_0000;
+        if (IPAddress.TryParse(muticastAddress, out var address) && address.AddressFamily == AddressFamily.InterNetworkV6)
+        {
+            SapFlags |= 0b0001_0000;
+        }
         BuildSdpBytes();
     }
 
     private void BuildSdpBytes()
     {
         var sdpConfig = new List<string>{
-            $"v=0",                                           // sdp版本号固定为0
-            $"o=- {SessId} {SessVersion} IN IP4 {SourceIPAddress}",      // 会话源信息
-            $"s={Name}",                                      // 会话名称
-            $"c=IN IP4 {MuticastAddress}/32",                   // 连接信息
-            $"t=0 0",                                         // 活动时间 开始时间和结束时间均为0，表示会话永久有效。
-            $"m=audio {MuticastPort} RTP/AVP 96",                     // 媒体名称和传输地址
+            $"v=0",                                                 // sdp版本号固定为0
+            $"o=- {SessId} {SessVersion} IN IP4 {SourceIPAddress}", // 会话源信息
+            $"s={Name}",                                            // 会话名称
+            $"c=IN IP4 {MuticastAddress}/32",                       // 连接信息
+            $"t={StartTime} {StopTime}",                            // 活动时间 开始时间和结束时间均为0，表示会话永久有效。
+            $"m=audio {MuticastPort} RTP/AVP 96",                   // 媒体名称和传输地址
         };
         if (Info != null)
         {
             sdpConfig.Add($"i={Info}");
         }
         sdpConfig.AddRange(new[] {
-            $"a=rtpmap:{RtpMap}",                              // rtp映射：负载类型96：编码格式L24，采样率48000,声道数1。
-            $"a=recvonly",                                     // 媒体方向，接收方仅接收。
-            $"a=ptime:{PTimems}",                                // 包时间ms
-            $"a=mediaclk:direct=0",                            // 媒体时钟，使用直接时钟同步参数0表示默认配置
+            $"a=rtpmap:{RtpMap}",                                   // rtp映射：负载类型96：编码格式L24，采样率48000,声道数1。
+            $"a=recvonly",                                          // 媒体方向，接收方仅接收。
+            $"a=ptime:{PTimems}",                                   // 包时间ms
+            $"a=mediaclk:direct=0",                                 // 媒体时钟，使用直接时钟同步参数0表示默认配置
             $"a=ts-refclk:ptp=IEEE1588-2008:{PtpMaster}:{Domain}",  //时钟源:域
             $"a=framecount:{SamplesPerFrame}",                      // 包采样数
         });
         SdpString = string.Join("\r\n", sdpConfig);
         SdpBytes = Encoding.Default.GetBytes(SdpString);
-        Crc16 = NullFX.CRC.Crc16.ComputeChecksum(Crc16Algorithm.Standard, SdpBytes);
-
+        MessageHash = Crc16.ComputeChecksum(Crc16Algorithm.Standard, SdpBytes);
     }
 
     public byte[] BuildSap(bool deletion = false)
     {
         var sapHeader = new byte[8];
-        sapHeader[0] = (byte)(deletion ? 0b0010_1000 : 0b0010_0000);
-        sapHeader[2] = (byte)(Crc16 & 0xFF);
-        sapHeader[3] = (byte)(Crc16 >> 8);
-        byte[] srcIp = IPAddress.Parse(SourceIPAddress).GetAddressBytes();
+        sapHeader[0] = (byte)(deletion ? 0b0010_0100 : 0b0010_0000);
+        sapHeader[2] = (byte)(MessageHash & 0xFF);
+        sapHeader[3] = (byte)(MessageHash >> 8);
         Buffer.BlockCopy(srcIp, 0, sapHeader, 4, 4);
         var sapContentType = Encoding.UTF8.GetBytes("application/sdp\0");
         SapBytes = sapHeader.Concat(sapContentType).Concat(SdpBytes).ToArray();
@@ -215,18 +236,23 @@ public class Sdp
 
     private void ParseSapHeader()
     {
+        SapFlags = SapBytes[0];
+        AuthLen = SapBytes[1];
+        MessageHash = (ushort)((SapBytes[3] << 8) | SapBytes[2]);
         // 提取源IP地址 (SAP头部4-7字节)
         byte[] srcIpBytes = new byte[4];
         Buffer.BlockCopy(SapBytes, 4, srcIpBytes, 0, 4);
-        SapFlags = SapBytes[0];
         SourceIPAddress = new IPAddress(srcIpBytes).ToString();
-        // 可以根据需要解析其他头部信息（如CRC校验）
-        Crc16 = (ushort)((SapBytes[3] << 8) | SapBytes[2]);
+        if (AuthLen > 0)
+        {
+            AuthData = new byte[AuthLen];
+            Buffer.BlockCopy(SapBytes, 8, AuthData, 0, AuthLen);
+        }
     }
 
     private int ParseContentType()
     {
-        int contentTypeStart = 8;
+        int contentTypeStart = 8 + AuthLen;
 
         // 查找内容类型的null终止符
         int nullTerminatorIndex = Array.IndexOf(SapBytes, (byte)0, contentTypeStart);
@@ -279,7 +305,7 @@ public class Sdp
         switch (field)
         {
             case "v":
-                // 协议版本，通常为0，暂不处理
+                // 协议版本，通常为0，不处理
                 break;
             case "o":
                 ParseOriginField(value);
@@ -291,7 +317,7 @@ public class Sdp
                 ParseConnectionField(value);
                 break;
             case "t":
-                // 时间描述，暂不处理
+                ParseTimeField(value);
                 break;
             case "m":
                 ParseMediaField(value);
@@ -325,6 +351,15 @@ public class Sdp
         if (parts.Length >= 3)
         {
             MuticastAddress = parts[2];
+        }
+    }
+    private void ParseTimeField(string value)
+    {
+        string[] parts = value.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length >= 2)
+        {
+            StartTime = ulong.Parse(parts[0]);
+            StopTime = ulong.Parse(parts[1]);
         }
     }
 
@@ -396,5 +431,11 @@ public class Sdp
     public override string ToString()
     {
         return SapMessage + " " + SapPayloadType + "\r\n" + SdpString;
+    }
+
+    internal void SetName(string name)
+    {
+        Name = name;
+        BuildSdpBytes();
     }
 }

@@ -106,7 +106,7 @@ public class PcmToRtpConverter
     private void InitializeTimestamp()
     {
         ulong currentNano = _pTPClient.TimeStampNanoseconds;
-        _timestamp = NanoToRtpTimestamp(currentNano, _sampleRate);
+        _timestamp = NanoToRtpTimestamp(currentNano, (uint)_sampleRate);
         _lastSyncNanoTime = currentNano;
     }
 
@@ -154,7 +154,8 @@ public class PcmToRtpConverter
 
         // 时间戳 (4字节)
         // RTP时间戳为32位无符号整数，取模防止溢出
-        byte[] timestampBytes = BitConverter.GetBytes(NetworkByteOrder((uint)(_timestamp % uint.MaxValue)));
+        var m = _timestamp % uint.MaxValue;
+        byte[] timestampBytes = BitConverter.GetBytes(NetworkByteOrder((uint)m));
         timestampBytes.CopyTo(rtpPacket, 4);
 
         // SSRC (4字节)
@@ -180,7 +181,7 @@ public class PcmToRtpConverter
         var expectedTimestamp = _timestamp + (ulong)expectedSamples;
 
         // 计算实际当前时间对应的RTP时间戳
-        var actualTimestamp = NanoToRtpTimestamp(currentNano, _sampleRate);
+        var actualTimestamp = NanoToRtpTimestamp(currentNano, (uint)_sampleRate);
 
         // 计算时间差，如果超过阈值则进行校正
         var timeDiff = (int)(expectedTimestamp > actualTimestamp ? expectedTimestamp - actualTimestamp : actualTimestamp - expectedTimestamp);
@@ -197,7 +198,10 @@ public class PcmToRtpConverter
 
         _lastSyncNanoTime = currentNano;
     }
-
+    static uint NsPerSecond = (uint)1e9;
+    static uint NsPerMSecond = (uint)1e6;
+    static uint NsPerUSecond = (uint)1e3;
+    static uint USPerSecond = (uint)1e6;
     /// <summary>
     /// 纳秒时间戳转换为RTP时间戳
     /// RTP时间戳：从开始计数起经过了几个采样
@@ -205,21 +209,19 @@ public class PcmToRtpConverter
     /// </summary>
     /// <param name="nanoTimestamp">纳秒时间戳（1e9秒）</param>
     /// <param name="sampleRate">RTP时钟频率（Hz，根据媒体类型确定）</param>
-    /// <returns>RTP时间戳（32位无符号整数）</returns>
-    public static ulong NanoToRtpTimestamp(ulong nanoTimestamp, int sampleRate)
+    /// <returns>RTP时间戳</returns>
+    public static ulong NanoToRtpTimestamp(ulong nanoTimestamp, uint sampleRate)
     {
-        // 转换公式：RTP时间戳 = 纳秒时间戳 × (时钟频率 / 1e9)
-        var seconds = nanoTimestamp / 1000_000_000;
-        var remainingNano = nanoTimestamp % 1000_000_000;
-        // 计算RTP时间戳
-        ulong rtpTimestamp = seconds * (ulong)sampleRate + (nanoTimestamp * (ulong)sampleRate) / 1000_000_000;
+        var seconds = nanoTimestamp / NsPerSecond;
+        var remainingNano = nanoTimestamp % NsPerSecond;
+        ulong rtpTimestamp = seconds * sampleRate + remainingNano * sampleRate / NsPerSecond;
         return rtpTimestamp;
     }
-    public static ulong RtpTimestampToNano(ulong rtpTimestamp, int sampleRate)
+    public static ulong RtpTimestampToNano(ulong rtpTimestamp, uint sampleRate)
     {
-        var seconds = rtpTimestamp / (ulong)sampleRate;
-        var remainingSsmples = rtpTimestamp % (ulong)sampleRate;
-        var nano = seconds * 1000_000_000 + (remainingSsmples * 1000_000_000) / (ulong)sampleRate;
+        var seconds = rtpTimestamp / sampleRate;
+        var remainingSsmples = rtpTimestamp % sampleRate;
+        var nano = seconds * NsPerSecond + remainingSsmples * NsPerSecond / sampleRate;
         return nano;
     }
     /// <summary>

@@ -18,6 +18,7 @@ public static class Aes67Const
     public static uint DefaultPTimeμs = 4000;
     public static string DefaultEncoding => $"L{DefaultBitsPerSample}";
     public static int DefaultBitsPerSample = 24;
+    public static int DefaultChannels = 2;
     public static int DefaultSampleRate = 48000;
     public static int DefaultPayloadType = 96;
     /// <summary>
