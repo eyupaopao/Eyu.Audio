@@ -87,8 +87,8 @@ public class Sdp
     public int SamplingRate { get; private set; }
     public int Channels { get; private set; }
     public int Duration { get; private set; }
-    public ulong StartTime { get; private set; } = 0;
-    public ulong StopTime { get; private set; } = 0;
+    public long StartTime { get; private set; } = 0;
+    public long StopTime { get; private set; } = 0;
     public bool IsDelete { get; private set; }
 
     private int SamplesPerFrame;
@@ -144,8 +144,8 @@ public class Sdp
         }
         else
         {
-            StartTime = PTPClient.Instance.TimeStampNanoseconds / 1000_000_000;
-            StopTime = StartTime + (ulong)Duration;
+            StartTime = PTPClient.Instance.Timestamp.Seconds;
+            StopTime = StartTime + Duration;
         }
         SamplesPerFrame = samplesPerPacket;
         RtpMap = $"{PayloadType} {encoding}/{sampleRate}/{channels}";
@@ -358,8 +358,8 @@ public class Sdp
         string[] parts = value.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length >= 2)
         {
-            StartTime = ulong.Parse(parts[0]);
-            StopTime = ulong.Parse(parts[1]);
+            StartTime = long.Parse(parts[0]);
+            StopTime = long.Parse(parts[1]);
         }
     }
 

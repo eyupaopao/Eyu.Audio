@@ -27,7 +27,6 @@ public class Aes67Channel : IDisposable
     private readonly WaveFormat _outputWaveFormat;
 
     // 包间隔(μs)推荐包间隔：48k 125μs,250μs,333μs; 96k:250μs,1000μs,4000μs
-    private readonly uint _pTimeμs;
     private uint _sendFrameCount;
     private readonly CancellationTokenSource _cts = new CancellationTokenSource();
     private readonly List<IPAddress> localAddresses;
@@ -40,10 +39,11 @@ public class Aes67Channel : IDisposable
     /// 构造AES67广播发送器
     /// </summary>
     /// <param name="sdp">SDP会话描述</param>
-    public Aes67Channel(WaveFormat inputWaveFormat, uint sessId, List<IPAddress> localAddresses, IPAddress muticastAddress, int muticastPort, string name, int duration, string? info = null)
+    public Aes67Channel(WaveFormat inputWaveFormat, uint sessId, List<IPAddress> localAddresses, IPAddress muticastAddress, int muticastPort, string name, string? info = null)
     {
-        var waveFormat = new WaveFormat(DefaultSampleRate, DefaultBitsPerSample, inputWaveFormat.Channels);
-        _samplesPerPacket = (int)Math.Ceiling(waveFormat.SampleRate * DefaultPTimeμs / 1000000f);
+        // 强制统一输出格式。
+        _outputWaveFormat = new WaveFormat(DefaultSampleRate, DefaultBitsPerSample, DefaultChannels);
+        _samplesPerPacket = (int)Math.Ceiling(DefaultSampleRate * DefaultPTimeμs / 1000000f);
         var pTPClient = PTPClient.Instance;
         foreach (var address in localAddresses)
         {
@@ -59,7 +59,7 @@ public class Aes67Channel : IDisposable
                        DefaultEncoding,
                        DefaultSampleRate,
                        DefaultChannels,
-                       duration,
+                       0,
                        info);
             ValidateAes67Parameters(sdp);
             var udpClient = new UdpClient(new IPEndPoint(address, 0));
@@ -67,8 +67,6 @@ public class Aes67Channel : IDisposable
             _udpClients[address] = udpClient;
             Sdps[address] = sdp;
         }
-        this._outputWaveFormat = waveFormat;
-        _pTimeμs = DefaultPTimeμs;
         _inputWaveFormat = inputWaveFormat;
         SessId = sessId;
         this.localAddresses = localAddresses;
@@ -77,28 +75,42 @@ public class Aes67Channel : IDisposable
         _multicastEndpoint = new IPEndPoint(MuticastAddress, muticastPort);
         // 初始化RTP转换器
         _rtpConverter = new PcmToRtpConverter(
-            pTPClient,
-            waveFormat.SampleRate, waveFormat.BitsPerSample, waveFormat.Channels,
+            pTPClient, DefaultSampleRate, DefaultBitsPerSample, DefaultChannels,
             (byte)DefaultPayloadType,
-            sessId,
             _samplesPerPacket
         );
         BuildProvider();
-
+        SendSdp();
     }
 
+    public void ChangeInput(WaveFormat inputWaveFormat)
+    {
+        if (!_inputWaveFormat.Equals(inputWaveFormat))
+        {
+            _inputWaveFormat = inputWaveFormat;
+            BuildProvider();
+        }
+        _rtpConverter.Initialize();
+    }
     void BuildProvider()
     {
         _inputProvider = new BufferedWaveProvider(_inputWaveFormat);
+        IWaveProvider waveProvider = _inputProvider;
+        if (_inputWaveFormat.Channels == 1 && DefaultChannels == 2)
+        {
+            waveProvider = new StereoToMonoProvider16(waveProvider);
+        }
         if (_inputWaveFormat.SampleRate == _outputWaveFormat.SampleRate && _inputWaveFormat.BitsPerSample == _outputWaveFormat.BitsPerSample)
         {
-            _outputProvider = _inputProvider;
+            _outputProvider = waveProvider;
             return;
         }
-        ISampleProvider sampleProvider = new SampleChannel(_inputProvider,false);
+        ISampleProvider sampleProvider = new SampleChannel(waveProvider, false);
         var waveFormat = new WaveFormat(DefaultSampleRate, DefaultBitsPerSample, sampleProvider.WaveFormat.Channels);
-        if (_inputProvider.WaveFormat.SampleRate != DefaultSampleRate)
-            sampleProvider = new SampleWaveFormatConversionProvider(new WaveFormat(DefaultSampleRate, _inputProvider.WaveFormat.Channels), sampleProvider);
+        // 采样率不一样的需要重采样。
+        if (waveProvider.WaveFormat.SampleRate != DefaultSampleRate)
+            sampleProvider = new SampleWaveFormatConversionProvider(new WaveFormat(DefaultSampleRate, waveProvider.WaveFormat.Channels), sampleProvider);
+        // 位深不一样的，需要转换位深。
         switch (DefaultBitsPerSample)
         {
             case 16:
@@ -165,6 +177,7 @@ public class Aes67Channel : IDisposable
     }
     void buildFrames()
     {
+        // 转换比例
         var ratio = _outputWaveFormat.SampleRate * _outputWaveFormat.BitsPerSample * _outputWaveFormat.Channels / (float)(_inputWaveFormat.SampleRate * _inputWaveFormat.BitsPerSample * _inputWaveFormat.Channels);
         var outputbufferSize = (int)(_inputProvider.BufferedBytes * ratio);
         if (outputbufferSize < bytesPerPacket)
@@ -193,27 +206,42 @@ public class Aes67Channel : IDisposable
 
     Channel<byte[]> _packets = Channel.CreateUnbounded<byte[]>();
     private int bytesPerPacket;
-
+    byte[]? currentPacket = null!;
+    private void SendSdp(bool deletion = false)
+    {
+        foreach (var address in _udpClients.Keys)
+        {
+            if (Sdps.TryGetValue(address, out var sdp))
+            {
+                _udpClients[address].SendAsync(sdp.BuildSap(deletion), SdpMulticastIPEndPoint);
+            }
+        }
+    }
     public void SendRtp()
     {
         try
         {
-            if (_sendFrameCount * _pTimeμs >= 10000000)
+            if (_sendFrameCount * DefaultPTimeμs >= 10_000_000)
             {
                 _sendFrameCount = 0;
+                SendSdp();
             }
-            if (_sendFrameCount == 0)
+
+            // 从转换器获取RTP包并发送
+            if (currentPacket == null)
             {
-                foreach (var address in _udpClients.Keys)
+                var flag = _packets.Reader.TryRead(out var packet);
+                if (flag && packet != null && packet.Length > 0)
                 {
-                    _udpClients[address].SendAsync(Sdps[address].BuildSap(), SdpMulticastIPEndPoint);
+                    currentPacket = packet;
                 }
             }
-            // 从转换器获取RTP包并发送
-            var flag = _packets.Reader.TryRead(out var packet);
-            if (flag && packet != null && packet.Length > 0)
+            if (currentPacket != null)
             {
-                var rtpFrame = _rtpConverter.BuildRtpPacket(packet, 0, packet.Length);
+                if (!_rtpConverter.EnsureTime()) return;
+                var rtpFrame = _rtpConverter.BuildRtpPacket(currentPacket, 0, currentPacket.Length);
+                if (rtpFrame == null) return;
+                currentPacket = null;
                 foreach (var address in _udpClients.Keys)
                 {
                     _udpClients[address].SendAsync(rtpFrame, _multicastEndpoint);
@@ -228,10 +256,7 @@ public class Aes67Channel : IDisposable
     }
     public void Stop()
     {
-        foreach (var address in _udpClients.Keys)
-        {
-            _udpClients[address].SendAsync(Sdps[address].BuildSap(true), SdpMulticastIPEndPoint);
-        }
+        SendSdp(true);
     }
     /// <summary>
     /// 释放资源

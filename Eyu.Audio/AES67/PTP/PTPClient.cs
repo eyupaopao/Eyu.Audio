@@ -25,19 +25,22 @@ namespace Eyu.Audio
         // 本机地址
         string addr = "127.0.0.1";
         // 最小同步间隔 ms 
-        ulong syncInterval;
+        long syncInterval;
 
         // 参数
         // 参与计算的各个时间戳
-        ulong t1, t2, t3, t4;
+        PTPTimestamp t1, t2, t3, t4;
+
+        public PTPTimestamp Delay { get; private set; }
+
         // 本机时间与服务器时间偏移量
-        public ulong Offset { get; private set; }
+        public PTPTimestamp Offset { get; private set; } = new PTPTimestamp(0);
         // sync 报文 id
         int sync_seq = 0;
         // delay_req 报文 id
         int req_seq = 0;
-        // 最近一次同步时间
-        ulong lastSync = 0;
+        // 最近一次同步时间(ms)
+        long lastSync = 0;
         static PTPClient instance;
         public static PTPClient Instance => instance ??= new PTPClient();
 
@@ -68,18 +71,18 @@ namespace Eyu.Audio
         public bool IsMaster { get; private set; } = false;
         public string PtpMaster => ptpMaster;
 
-        public ulong UtcNowNanoseconds
+        public PTPTimestamp UtcNow
         {
             get
             {
-                return PTPTimmer.UtcNowNanoseconds + Offset;
+                return new PTPTimestamp(PTPTimmer.UtcNowNanoseconds) - Offset;
             }
         }
-        public ulong TimeStampNanoseconds
+        public PTPTimestamp Timestamp
         {
             get
             {
-                return PTPTimmer.TimeStampNanoseconds + Offset;
+                return new PTPTimestamp(PTPTimmer.TimeStampNanoseconds) - Offset;
             }
         }
 
@@ -111,9 +114,9 @@ namespace Eyu.Audio
         }
 
         // 获取与ptp服务器对时后的时间戳
-        ulong getCorrentedTime()
+        PTPTimestamp getCorrentedTime()
         {
-            return PTPTimmer.TotalNanoseconds - Offset;
+            return new PTPTimestamp(PTPTimmer.TimeStampNanoseconds) - Offset;
         }
 
         CancellationTokenSource cts;
@@ -142,7 +145,7 @@ namespace Eyu.Audio
                 if (message.Version != 2 || message.Domain != Domain)
                     continue;
                 // follo_up 报文
-                if (message.MessageId == MessageType.FOLLOW_UP && sync_seq == message.SequencId && getCorrentedTime() / 1000000 - lastSync > syncInterval)
+                if (message.MessageId == MessageType.FOLLOW_UP && sync_seq == message.SequencId && getCorrentedTime().GetTotalNanoseconds() / 1000000 - lastSync > syncInterval)
                 {
                     // sync 报文的精确发送时间 t1
                     t1 = message.Timestamp;
@@ -157,12 +160,12 @@ namespace Eyu.Audio
                     // 获取主时钟收到delay_req的时间。
                     t4 = message.Timestamp;
                     // 计算延迟。
-                    var delay = (t4 - t3 + t2 - t1) * 0.5;
-                    var offset = (t2 - t1 - t4 + t3) * 0.5;
-                    if (Debugger.IsAttached)
-                        Debug.WriteLine($"同步：offset {offset}ns; delay {delay}ns");
-                    Offset += (ulong)offset;
-                    lastSync = getCorrentedTime() / 1000000;
+                    Delay = (t4 - t3 + t2 - t1) / 2;
+                    var offset = (t2 - t1 - t4 + t3) / 2;
+                    Offset += offset;
+                    //if (Debugger.IsAttached)
+                    //    Console.WriteLine($"同步：offset {offset}ns; delay {delay}ns；结果：{Offset}");
+                    lastSync = getCorrentedTime().GetTotalNanoseconds() / 1000_000;
                     if (!sync)
                     {
                         sync = true;
@@ -210,7 +213,7 @@ namespace Eyu.Audio
 
                 //save sequence number
                 sync_seq = message.SequencId;
-                var timestamp = (ulong)(DateTime.UtcNow - DateTime.UnixEpoch).TotalMilliseconds;
+                var timestamp = getCorrentedTime().GetTotalNanoseconds();
                 //check if master is two step or not
                 if (message.PTP_TWO_STEP)
                 {

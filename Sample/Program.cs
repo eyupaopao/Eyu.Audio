@@ -116,7 +116,7 @@ static void TestAes67()
     if (flag && index <= network.Count)
     {
         var address = IPAddress.Parse(network[index - 1]);
-        Aes67Manager aes67Manager = new Aes67Manager(address);
+        Aes67ChannelManager aes67Manager = new Aes67ChannelManager(address);
         Console.ReadLine();
     }
 }

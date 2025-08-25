@@ -39,11 +39,41 @@ public class PTPMessage
         SequencId = message.ReadInt16BE(30);
         Control = message[32];
         LogMeanMessageInterval = message[33];
-        if(MessageId >= MessageType.SYNC && MessageId <= MessageType.PATH_DELAY_FOLLOW_UP)
+        if (MessageId >= MessageType.SYNC && MessageId <= MessageType.PATH_DELAY_FOLLOW_UP)
         {
-            Timestamp = (((ulong)message.ReadInt16BE(34) << 4) + (ulong)message.ReadLongBE(36)) * 1000000000 + (ulong)message.ReadLongBE(40);
-            TimeSpan = TimeSpan.FromMicroseconds(Timestamp / 1000);
+            var timestamp = ReadPtpTimestamp(message);
+            Timestamp = new PTPTimestamp(timestamp[0], timestamp[1]);
         }
+    }
+    /// <summary>
+    /// 从PTP消息中读取时间戳，返回包含秒和纳秒的数组
+    /// long[0] = 秒数
+    /// long[1] = 纳秒数 (0-999,999,999)
+    /// </summary>
+    /// <param name="message">PTP消息缓冲区</param>
+    /// <returns>包含秒和纳秒的数组</returns>
+    public long[] ReadPtpTimestamp(byte[] message)
+    {
+        long[] timestamp = new long[2];
+        // 读取秒数部分（48位，PTP标准中通常为48位）
+        // 前16位在偏移34，后32位在偏移36
+        ushort secondsHigh = message.ReadUInt16BE(34);  // 高16位
+        uint secondsLow = message.ReadUInt32BE(36);     // 低32位
+        timestamp[0] = ((long)secondsHigh << 32) | secondsLow;  // 合并为48位秒数
+
+        // 读取纳秒部分（32位，偏移40）
+        uint nanoseconds = message.ReadUInt32BE(40);
+        timestamp[1] = nanoseconds;  // 转为long类型
+
+        // 确保纳秒值在有效范围内（0-999,999,999）
+        if (timestamp[1] > 999_999_999)
+        {
+            // 处理异常情况，可能是数据错误
+            timestamp[0] += timestamp[1] / 1_000_000_000;
+            timestamp[1] %= 1_000_000_000;
+        }
+
+        return timestamp;
     }
     /// <summary>
     /// offset 0; 7-4bit
@@ -149,6 +179,7 @@ public class PTPMessage
 
 
     /// <summary>
+    /// 2位long数组第一位是秒，第二位是剩下的纳秒数。
     /// <list type="bullet">
     /// <item>Sync/Delay_Reg/Pdelay_Req: 源时间标签。</item>
     /// <item>    
@@ -166,10 +197,7 @@ public class PTPMessage
     /// </item>
     /// </list>
     /// </summary>
-    public ulong Timestamp { get; set; }
-
-    public TimeSpan TimeSpan { get; set; }
-
+    public PTPTimestamp Timestamp { get; private set; }
     // For ANNOUNCE messages only
     public byte Priority1 { get; set; }
     public byte Priority2 { get; set; }

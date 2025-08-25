@@ -142,6 +142,7 @@ public class Aes67ChannelManager
     {
         timmerTick?.Invoke();
     }
+    byte[] muticastAddressByte = [239, 69, 1, 1];
     /// <summary>
     /// 创建广播
     /// </summary>
@@ -149,8 +150,8 @@ public class Aes67ChannelManager
     /// <param name="name">广播名称</param>
     /// <param name="duration">时间长度(秒)</param>
     /// <returns></returns>
-    public Aes67Channel CreateMulticastcastChannel(WaveFormat inputWaveFormat, string name, int duration = 0)
-    { 
+    public Aes67Channel CreateMulticastcastChannel(WaveFormat inputWaveFormat, string name)
+    {
         var random = new Random();
         uint ssrc = 0;
         byte[] ssrcBytes = new byte[4];
@@ -161,17 +162,17 @@ public class Aes67ChannelManager
             if (ExistAes67Sdp.Values.Any(s => s.SessId == ssrc) || _channels.Any(c => c.SessId == ssrc)) continue;
             else break;
         }
-        byte[] addressByte = [239, 69, 1, 1];
+        muticastAddressByte[3]++;
         while (true)
         {
-            var multicastAddress = new IPAddress(ssrcBytes);
-            if (ExistAes67Sdp.Values.Any(s => s.SourceIPAddress.Equals(multicastAddress.ToString())) || _channels.Any(c => c.MuticastAddress.Equals(multicastAddress.ToString())))
+            var multicastAddress = new IPAddress(muticastAddressByte);
+            if (ExistAes67Sdp.Values.Any(s => s.MuticastAddress.Equals(multicastAddress.ToString())) || _channels.Any(c => c.MuticastAddress.Equals(multicastAddress.ToString())))
             {
-                addressByte[3]++;
-                if (addressByte[3] > 255)
+                muticastAddressByte[3]++;
+                if (muticastAddressByte[3] > 255)
                 {
-                    addressByte[2]++;
-                    addressByte[3] = 1;
+                    muticastAddressByte[2]++;
+                    muticastAddressByte[3] = 1;
                 }
                 continue;
             }
@@ -181,19 +182,20 @@ public class Aes67ChannelManager
             inputWaveFormat,
             ssrc,
             localAddresses,
-            new IPAddress(addressByte),
+            new IPAddress(muticastAddressByte),
             Aes67Const.Aes67MuticastPort,
             name,
-            duration,
             null);
         _channels.Add(channle);
         if (highPrecisionTimer == null)
         {
             highPrecisionTimer = new(HandleAes67BroadCast);
-            highPrecisionTimer.SetPeriod(Aes67Const.DefaultPTimeμs / 1000f);
+            // 设置定时器周期为默认的包间隔时间的1/10（单位：ms）
+            highPrecisionTimer.SetPeriod(Aes67Const.DefaultPTimeμs / 10000f);
             highPrecisionTimer.Start();
         }
         timmerTick += channle.SendRtp;
         return channle;
     }
+
 }
