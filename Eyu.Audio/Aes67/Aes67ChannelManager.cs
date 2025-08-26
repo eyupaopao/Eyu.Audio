@@ -21,23 +21,51 @@ public class Aes67ChannelManager
     private readonly List<IPAddress> localAddresses = new();
     private readonly List<UdpClient> _sdpFinder = new();
     private readonly List<Aes67Channel> _channels = new();
-    private CancellationTokenSource cts = new();
+    private CancellationTokenSource cts;
     private HighPrecisionTimer? highPrecisionTimer;
     private event Action? timmerTick;
-    public static Aes67ChannelManager Inctance = null!;
+    public static Aes67ChannelManager Instance = null!;
     public static void Start(params IPAddress[] localAddress)
     {
-        Inctance = new Aes67ChannelManager(localAddress);
+        Instance = new Aes67ChannelManager(localAddress);
+        PTPClient.Instance.Start();
+        Instance.cts = new();
+        Instance.ConfigureSdpFinder();
     }
-    public Aes67ChannelManager(params IPAddress[] localAddress)
+    public static void Stop()
+    {
+        if (Instance == null) return;
+        PTPClient.Instance.Stop();
+        Instance.cts.Cancel();
+        foreach (var udp in Instance._sdpFinder)
+        {
+            try
+            {
+                udp.DropMulticastGroup(Aes67Const.SdpMulticastIPEndPoint.Address);
+            }
+            catch { }
+            udp.Close();
+            udp.Dispose();
+        }
+        Instance._sdpFinder.Clear();
+        foreach (var channel in Instance._channels)
+        {
+            channel.Stop();
+            channel.Dispose();
+        }
+        Instance._channels.Clear();
+        Instance.highPrecisionTimer?.Stop();
+        Instance.highPrecisionTimer = null;
+        Instance = null!;
+    }
+
+    Aes67ChannelManager(params IPAddress[] localAddress)
     {
         foreach (var item in localAddress)
         {
             if (item.AddressFamily == AddressFamily.InterNetworkV6) continue;
             this.localAddresses.Add(item);
         }
-        PTPClient.Instance.Start();
-        ConfigureSdpFinder();
     }
     private void ConfigureSdpFinder()
     {
