@@ -47,7 +47,7 @@ public class PTPTimestamp
         }
     }
 
-    // 修复：使用long类型处理总纳秒数，支持负数
+    // 使用long类型处理总纳秒数，支持负数
     public long GetTotalNanoseconds()
     {
         return Seconds * NanosecondsPerSecond + Nanoseconds;

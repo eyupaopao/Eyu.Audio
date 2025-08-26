@@ -39,7 +39,7 @@ public class Aes67Channel : IDisposable
     /// 构造AES67广播发送器
     /// </summary>
     /// <param name="sdp">SDP会话描述</param>
-    public Aes67Channel(WaveFormat inputWaveFormat, uint sessId, List<IPAddress> localAddresses, IPAddress muticastAddress, int muticastPort, string name, string? info = null)
+    public Aes67Channel(uint sessId, List<IPAddress> localAddresses, IPAddress muticastAddress, int muticastPort, string name, string? info = null)
     {
         // 强制统一输出格式。
         _outputWaveFormat = new WaveFormat(DefaultSampleRate, DefaultBitsPerSample, DefaultChannels);
@@ -67,7 +67,6 @@ public class Aes67Channel : IDisposable
             _udpClients[address] = udpClient;
             Sdps[address] = sdp;
         }
-        _inputWaveFormat = inputWaveFormat;
         SessId = sessId;
         this.localAddresses = localAddresses;
         MuticastAddress = muticastAddress;
@@ -79,18 +78,24 @@ public class Aes67Channel : IDisposable
             (byte)DefaultPayloadType,
             _samplesPerPacket
         );
-        BuildProvider();
-        SendSdp();
     }
 
-    public void ChangeInput(WaveFormat inputWaveFormat)
+    internal void Init(WaveFormat inputWaveFormat, string name)
     {
-        if (!_inputWaveFormat.Equals(inputWaveFormat))
+        if (_inputWaveFormat == null || !_inputWaveFormat.Equals(inputWaveFormat))
         {
             _inputWaveFormat = inputWaveFormat;
             BuildProvider();
         }
+        if (!string.IsNullOrEmpty(name))
+        {
+            foreach (var sdp in Sdps.Values)
+            {
+                sdp.SetName(name);
+            }
+        }
         _rtpConverter.Initialize();
+        SendSdp();
     }
     void BuildProvider()
     {

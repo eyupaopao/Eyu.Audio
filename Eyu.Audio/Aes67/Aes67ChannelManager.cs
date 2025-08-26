@@ -137,6 +137,11 @@ public class Aes67ChannelManager
             channel.Dispose();
             _channels.Remove(channel);
         }
+        if (_channels.Count == 0 && highPrecisionTimer != null)
+        {
+            highPrecisionTimer?.Stop();
+            highPrecisionTimer = null;
+        }
     }
     private void HandleAes67BroadCast()
     {
@@ -150,7 +155,7 @@ public class Aes67ChannelManager
     /// <param name="name">广播名称</param>
     /// <param name="duration">时间长度(秒)</param>
     /// <returns></returns>
-    public Aes67Channel CreateMulticastcastChannel(WaveFormat inputWaveFormat, string name)
+    public Aes67Channel CreateMulticastcastChannel(string name)
     {
         var random = new Random();
         uint ssrc = 0;
@@ -178,15 +183,18 @@ public class Aes67ChannelManager
             }
             break;
         }
-        var channle = new Aes67Channel(
-            inputWaveFormat,
+        var channel = new Aes67Channel(
             ssrc,
             localAddresses,
             new IPAddress(muticastAddressByte),
             Aes67Const.Aes67MuticastPort,
             name,
             null);
-        _channels.Add(channle);
+        return channel;
+    }
+    public void Init(Aes67Channel channel, WaveFormat waveFormat, string name = "")
+    {
+        channel.Init(waveFormat, name);
         if (highPrecisionTimer == null)
         {
             highPrecisionTimer = new(HandleAes67BroadCast);
@@ -194,8 +202,12 @@ public class Aes67ChannelManager
             highPrecisionTimer.SetPeriod(Aes67Const.DefaultPTimeμs / 10000f);
             highPrecisionTimer.Start();
         }
-        timmerTick += channle.SendRtp;
-        return channle;
+        if (!_channels.Contains(channel))
+        {
+            timmerTick += channel.SendRtp;
+            _channels.Add(channel);
+        }
+
     }
 
 }
