@@ -22,7 +22,7 @@ public class Aes67Channel : IDisposable
     public readonly Dictionary<IPAddress, Sdp> Sdps = new();
     private readonly Dictionary<IPAddress, UdpClient> _udpClients = new();
     private readonly PcmToRtpConverter _rtpConverter;
-    private readonly IPEndPoint _multicastEndpoint;
+    public readonly IPEndPoint MulticastEndpoint;
     private WaveFormat _inputWaveFormat = null!;
     private readonly WaveFormat _outputWaveFormat;
 
@@ -33,7 +33,7 @@ public class Aes67Channel : IDisposable
     BufferedWaveProvider _inputProvider;
     IWaveProvider _outputProvider;
     public uint SessId { get; }
-    public IPAddress MuticastAddress { get; }
+    internal IPAddress MuticastAddress { get; }
     #endregion
     /// <summary>
     /// 构造AES67广播发送器
@@ -71,7 +71,7 @@ public class Aes67Channel : IDisposable
         this.localAddresses = localAddresses;
         MuticastAddress = muticastAddress;
         // 初始化多播端点
-        _multicastEndpoint = new IPEndPoint(MuticastAddress, muticastPort);
+        MulticastEndpoint = new IPEndPoint(MuticastAddress, muticastPort);
         // 初始化RTP转换器
         _rtpConverter = new PcmToRtpConverter(
             pTPClient, DefaultSampleRate, DefaultBitsPerSample, DefaultChannels,
@@ -249,7 +249,7 @@ public class Aes67Channel : IDisposable
                 currentPacket = null;
                 foreach (var address in _udpClients.Keys)
                 {
-                    _udpClients[address].SendAsync(rtpFrame, _multicastEndpoint);
+                    _udpClients[address].SendAsync(rtpFrame, MulticastEndpoint);
                 }
                 _sendFrameCount++;
             }
