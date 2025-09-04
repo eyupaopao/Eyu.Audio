@@ -17,7 +17,7 @@ namespace Eyu.Audio.Aes67;
 
 public class Aes67ChannelManager
 {
-    public Dictionary<string, Sdp> ExistAes67Sdp = new();
+    private Dictionary<string, Sdp> _existAes67Sdp = new();
     private readonly List<IPAddress> localAddresses = new();
     private readonly List<UdpClient> _sdpFinder = new();
     private readonly List<Aes67Channel> _channels = new();
@@ -59,6 +59,24 @@ public class Aes67ChannelManager
         Instance = null!;
     }
 
+    Random random = new Random();
+    public IEnumerable<Sdp> GetExistSdp()
+    {
+        var timeout = new List<Sdp>();
+        foreach (var item in _existAes67Sdp.Values)
+        {
+            if ((DateTime.Now - item.LastReciveTime) < TimeSpan.FromSeconds(20))
+                yield return item;
+            else
+                timeout.Add(item);
+        }
+        foreach (var item in timeout)
+        {
+            var key = $"{item.SessId}{item.MessageHash}";
+            _existAes67Sdp.Remove(key);
+        }
+
+    }
     Aes67ChannelManager(params IPAddress[] localAddress)
     {
         foreach (var item in localAddress)
@@ -115,12 +133,12 @@ public class Aes67ChannelManager
                         continue;
                     var sdp = new Sdp(result.Buffer);
                     var key = $"{sdp.SessId}{sdp.MessageHash}";
-                    if (sdp.SapMessage == Aes67Const.Deletion && ExistAes67Sdp.TryGetValue(key, out var exist))
+                    if (sdp.SapMessage == Aes67Const.Deletion && _existAes67Sdp.TryGetValue(key, out var exist))
                     {
-                        ExistAes67Sdp.Remove(key);
+                        _existAes67Sdp.Remove(key);
                     }
                     else
-                        ExistAes67Sdp[key] = sdp;
+                        _existAes67Sdp[key] = sdp;
                 }
                 catch (Exception ex)
                 {
@@ -153,10 +171,11 @@ public class Aes67ChannelManager
 
     public void StopChannel(Aes67Channel channel)
     {
+        if (channel == null) return;
         var key = $"{channel.SessId}{channel.Sdps.Values.First().MessageHash}";
-        if (ExistAes67Sdp.ContainsKey(key))
+        if (_existAes67Sdp.ContainsKey(key))
         {
-            ExistAes67Sdp.Remove(key);
+            _existAes67Sdp.Remove(key);
         }
         if (channel != null)
         {
@@ -171,35 +190,32 @@ public class Aes67ChannelManager
             highPrecisionTimer = null;
         }
     }
+    DateTime time = DateTime.Now;
     private void HandleAes67BroadCast()
     {
         timmerTick?.Invoke();
     }
-    byte[] muticastAddressByte = [239, 69, 1, 1];
-    /// <summary>
-    /// 创建广播
-    /// </summary>
-    /// <param name="inputWaveFormat">数据格式</param>
-    /// <param name="name">广播名称</param>
-    /// <param name="duration">时间长度(秒)</param>
-    /// <returns></returns>
-    public Aes67Channel CreateMulticastcastChannel(string name)
+    public uint GenSsrc()
     {
-        var random = new Random();
         uint ssrc = 0;
         byte[] ssrcBytes = new byte[4];
         while (true)
         {
             random.NextBytes(ssrcBytes);
             ssrc = BitConverter.ToUInt32(ssrcBytes, 0);
-            if (ExistAes67Sdp.Values.Any(s => s.SessId == ssrc) || _channels.Any(c => c.SessId == ssrc)) continue;
+            if (_existAes67Sdp.Values.Any(s => s.SessId == ssrc) || _channels.Any(c => c.SessId == ssrc)) continue;
             else break;
         }
+        return ssrc;
+
+    }
+    public IPAddress GetUseAbleMcastAddress()
+    {
         muticastAddressByte[3]++;
         while (true)
         {
             var multicastAddress = new IPAddress(muticastAddressByte);
-            if (ExistAes67Sdp.Values.Any(s => s.MuticastAddress.Equals(multicastAddress.ToString())) || _channels.Any(c => c.MuticastAddress.Equals(multicastAddress.ToString())))
+            if (_existAes67Sdp.Values.Any(s => s.MuticastAddress.Equals(multicastAddress.ToString())) || _channels.Any(c => c.MuticastAddress.Equals(multicastAddress.ToString())))
             {
                 muticastAddressByte[3]++;
                 if (muticastAddressByte[3] > 255)
@@ -211,10 +227,22 @@ public class Aes67ChannelManager
             }
             break;
         }
+        return new IPAddress(muticastAddressByte);
+    }
+    byte[] muticastAddressByte = [239, 69, 1, 1];
+    /// <summary>
+    /// 创建广播
+    /// </summary>
+    /// <param name="inputWaveFormat">数据格式</param>
+    /// <param name="name">广播名称</param>
+    /// <param name="duration">时间长度(秒)</param>
+    /// <returns></returns>
+    public Aes67Channel CreateMulticastcastChannel(string name)
+    {              
         var channel = new Aes67Channel(
-            ssrc,
+            GenSsrc(),
             localAddresses,
-            new IPAddress(muticastAddressByte),
+            GetUseAbleMcastAddress(),
             Aes67Const.Aes67MuticastPort,
             name,
             null);
