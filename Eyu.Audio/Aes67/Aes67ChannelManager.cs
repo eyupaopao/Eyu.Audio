@@ -60,7 +60,7 @@ public class Aes67ChannelManager
     }
 
     Random random = new Random();
-    public IEnumerable<Sdp> GetExistSdp()
+    public IEnumerable<Sdp> GetExistSdps()
     {
         var timeout = new List<Sdp>();
         foreach (var item in _existAes67Sdp.Values)
@@ -75,7 +75,12 @@ public class Aes67ChannelManager
             var key = $"{item.SessId}{item.MessageHash}";
             _existAes67Sdp.Remove(key);
         }
-
+    }
+    public Sdp? GetExistSdp(string sessId,string hash)
+    {
+        var key = $"{sessId}{hash}";
+        var flag = _existAes67Sdp.TryGetValue(key, out var value);
+        return value;
     }
     Aes67ChannelManager(params IPAddress[] localAddress)
     {
