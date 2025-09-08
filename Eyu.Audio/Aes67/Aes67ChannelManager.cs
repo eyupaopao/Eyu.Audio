@@ -21,6 +21,7 @@ public class Aes67ChannelManager
     private readonly List<IPAddress> localAddresses = new();
     private readonly List<UdpClient> _sdpFinder = new();
     private readonly List<Aes67Channel> _channels = new();
+    public static Action<Sdp, bool>? SdpOnlineEvent;
     private CancellationTokenSource cts;
     private HighPrecisionTimer? highPrecisionTimer;
     private event Action? timmerTick;
@@ -62,21 +63,13 @@ public class Aes67ChannelManager
     Random random = new Random();
     public IEnumerable<Sdp> GetExistSdps()
     {
-        var timeout = new List<Sdp>();
         foreach (var item in _existAes67Sdp.Values)
         {
             if ((DateTime.Now - item.LastReciveTime) < TimeSpan.FromSeconds(20))
                 yield return item;
-            else
-                timeout.Add(item);
-        }
-        foreach (var item in timeout)
-        {
-            var key = $"{item.SessId}{item.MessageHash}";
-            _existAes67Sdp.Remove(key);
         }
     }
-    public Sdp? GetExistSdp(string sessId,string hash)
+    public Sdp? GetExistSdp(string sessId, string hash)
     {
         var key = $"{sessId}{hash}";
         var flag = _existAes67Sdp.TryGetValue(key, out var value);
@@ -133,20 +126,35 @@ public class Aes67ChannelManager
             {
                 try
                 {
-                    var result = await udpClient.ReceiveAsync();
+                    var timeout = new CancellationTokenSource(30000);
+                    var result = await udpClient.ReceiveAsync(timeout.Token);
                     if (result.RemoteEndPoint.Equals(udpClient.Client.LocalEndPoint as IPEndPoint))
                         continue;
                     var sdp = new Sdp(result.Buffer);
-                    var key = $"{sdp.SessId}{sdp.MessageHash}";
-                    if (sdp.SapMessage == Aes67Const.Deletion && _existAes67Sdp.TryGetValue(key, out var exist))
+                    if (sdp.SapMessage == Aes67Const.Deletion && _existAes67Sdp.TryGetValue(sdp.Key, out var exist))
                     {
-                        _existAes67Sdp.Remove(key);
+                        _existAes67Sdp.Remove(sdp.Key);
+                        SdpOnlineEvent?.Invoke(sdp, false);
                     }
                     else
-                        _existAes67Sdp[key] = sdp;
+                    {
+                        _existAes67Sdp[sdp.Key] = sdp;
+                        SdpOnlineEvent?.Invoke(sdp, true);
+                    }
                 }
                 catch (Exception ex)
                 {
+                    var timeouted = new List<Sdp>();
+                    foreach (var item in _existAes67Sdp.Values)
+                    {
+                        if ((DateTime.Now - item.LastReciveTime) > TimeSpan.FromSeconds(20))
+                            timeouted.Add(item);
+                    }
+                    foreach (var item in timeouted)
+                    {
+                        _existAes67Sdp.Remove(item.Key);
+                        SdpOnlineEvent?.Invoke(item, false);
+                    }
                 }
             }
         });
@@ -243,7 +251,7 @@ public class Aes67ChannelManager
     /// <param name="duration">时间长度(秒)</param>
     /// <returns></returns>
     public Aes67Channel CreateMulticastcastChannel(string name)
-    {              
+    {
         var channel = new Aes67Channel(
             GenSsrc(),
             localAddresses,

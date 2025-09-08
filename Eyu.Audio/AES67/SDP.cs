@@ -68,45 +68,50 @@ public class Sdp
     /// 18. b=*：带宽信息（可选）。
     /// 19. k=*：加密密钥（可选）。
     /// 20. a=*：零或多个媒体属性行（可选）。
-    public string Name { get; private set; }
-    public string SourceIPAddress { get; private set; }
-    public string MuticastAddress { get; private set; }
-    public int MuticastPort { get; private set; }
-    public uint SessId { get; private set; }
-    public uint SessVersion { get; private set; }
-    public float PTimems { get; private set; }
-    public int PayloadType { get; private set; }
-    public string PtpMaster { get; private set; }
-    public int Domain { get; private set; }
-    public string RtpMap { get; private set; }
-    public string? Info { get; private set; }
-    public byte[] SapBytes { get; private set; }
+    public string Key { get; set; }
+    public string Name { get; set; }
+    public string SourceIPAddress { get; set; }
+    public string MuticastAddress { get; set; }
+    public int MuticastPort { get; set; }
+    public uint SessId { get; set; }
+    public uint SessVersion { get; set; }
+    public float PTimems { get; set; }
+    public int PayloadType { get; set; }
+    public string PtpMaster { get; set; }
+    public int Domain { get; set; }
+    public string RtpMap { get; set; }
+    public string? Info { get; set; }
+    public byte[] SapBytes { get; set; }
 
-    public string AudioEncoding { get; private set; }
-    public int SampleRate { get; private set; }
-    public int SamplingRate { get; private set; }
-    public int Channels { get; private set; }
-    public int Duration { get; private set; }
-    public long StartTime { get; private set; } = 0;
-    public long StopTime { get; private set; } = 0;
-    public bool IsDelete { get; private set; }
+    public string AudioEncoding { get; set; }
+    public int SampleRate { get; set; }
+    public int SamplingRate { get; set; }
+    public int Channels { get; set; }
+    public int Duration { get; set; }
+    public long StartTime { get; set; } = 0;
+    public long StopTime { get; set; } = 0;
+    public bool IsDelete { get; set; }
 
     private int SamplesPerFrame;
-    public DateTime LastReciveTime { get; private set; }
-    public string SdpString { get; private set; }
-    public byte[] SdpBytes { get; private set; }
+    public DateTime LastReciveTime { get; set; }
+    public string SdpString { get; set; }
+    public byte[] SdpBytes { get; set; }
 
     #endregion
     #region sap
-    public byte SapFlags { get; private set; } = 0b0010_0000;
+    public byte SapFlags { get; set; } = 0b0010_0000;
     public int SapVersion => (0b0010_0000 & SapFlags) >> 5;
     public AddressFamily AddressType => (SapFlags & 0b0001_0000) == 0b0001_0000 ? AddressFamily.InterNetworkV6 : AddressFamily.InterNetwork;
     public string SapMessage => (SapFlags & 0b0000_0100) == 0b0000_0100 ? "Deletion" : "Announcement";
-    public ushort MessageHash { get; private set; }
+    public ushort MessageHash { get; set; }
     private byte[] srcIp;
-    public int AuthLen { get; private set; } = 0;
-    public byte[] AuthData { get; private set; } = [];
-    public string SapPayloadType { get; private set; } = "application/sdp";
+    public int AuthLen { get; set; } = 0;
+    public byte[] AuthData { get; set; } = [];
+    public string SapPayloadType { get; set; } = "application/sdp";
+    public Sdp()
+    {
+
+    }
     #endregion
     public Sdp(string name,
                uint sessId,
@@ -158,6 +163,7 @@ public class Sdp
             SapFlags |= 0b0001_0000;
         }
         BuildSdpBytes();
+        Key = $"{SessId}{MessageHash}";
     }
 
     private void BuildSdpBytes()
@@ -227,6 +233,7 @@ public class Sdp
 
             // 3. 提取并解析SDP内容
             ParseSdpContent(sdpStartIndex);
+            Key = $"{SessId}{MessageHash}";
         }
         catch (Exception ex)
         {
