@@ -69,9 +69,8 @@ public class Aes67ChannelManager
                 yield return item;
         }
     }
-    public Sdp? GetExistSdp(string sessId, string hash)
+    public Sdp? GetExistSdp(string key)
     {
-        var key = $"{sessId}{hash}";
         var flag = _existAes67Sdp.TryGetValue(key, out var value);
         return value;
     }
@@ -131,9 +130,10 @@ public class Aes67ChannelManager
                     if (result.RemoteEndPoint.Equals(udpClient.Client.LocalEndPoint as IPEndPoint))
                         continue;
                     var sdp = new Sdp(result.Buffer);
-                    if (sdp.SapMessage == Aes67Const.Deletion && _existAes67Sdp.TryGetValue(sdp.Key, out var exist))
+                    if (sdp.SapMessage == Aes67Const.Deletion)
                     {
-                        _existAes67Sdp.Remove(sdp.Key);
+                        if (_existAes67Sdp.TryGetValue(sdp.Key, out var exist))
+                            _existAes67Sdp.Remove(sdp.Key);
                         SdpOnlineEvent?.Invoke(sdp, false);
                     }
                     else

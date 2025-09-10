@@ -82,6 +82,7 @@ public class Sdp
     public string RtpMap { get; set; }
     public string? Info { get; set; }
     public byte[] SapBytes { get; set; }
+    public int DeviceId { get; set; }
 
     public string AudioEncoding { get; set; }
     public int SampleRate { get; set; }
