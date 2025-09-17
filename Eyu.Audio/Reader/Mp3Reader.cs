@@ -14,7 +14,7 @@ public class Mp3Reader : Mp3FileReaderBase
         : base(File.OpenRead(mp3FileName), CreateFrameDecompressor, true)
     {
     }
-    public Mp3Reader(Stream stream) : base(stream, CreateFrameDecompressor, true)
+    public Mp3Reader(Stream stream) : base(stream, CreateFrameDecompressor, false)
     {
 
     }
