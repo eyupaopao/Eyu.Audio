@@ -16,8 +16,8 @@ public class AudioFileReader : WaveStream, ISampleProvider, IWaveProvider
     private readonly long length;
     private readonly object lockObject;
 
-    private Stream _stream;
-    private Stream _fstream;
+    private readonly Stream? _stream;
+    private readonly Stream? _fstream;
 
     /// <summary>
     /// Initializes a new instance of AudioFileReader
@@ -52,7 +52,7 @@ public class AudioFileReader : WaveStream, ISampleProvider, IWaveProvider
     /// <param Name="fileName">File Name</param>
     private void CreateReaderStream()
     {
-        var temp = _fstream ?? _stream;
+        var temp = _fstream ?? _stream!;
         if (FileName.EndsWith(".wav", StringComparison.OrdinalIgnoreCase))
         {
             readerStream = new WaveFileReader(temp);
@@ -64,7 +64,6 @@ public class AudioFileReader : WaveStream, ISampleProvider, IWaveProvider
         }
         else if (FileName.EndsWith(".mp3", StringComparison.OrdinalIgnoreCase))
         {
-
             mp3FileReader = new Mp3Reader(temp);
             readerStream = mp3FileReader;
         }
@@ -199,9 +198,7 @@ public class AudioFileReader : WaveStream, ISampleProvider, IWaveProvider
         if (disposing)
         {
             readerStream?.Dispose();
-            readerStream = null;
             _fstream?.Dispose();
-            _fstream = null;
         }
         base.Dispose(disposing);
     }
@@ -220,6 +217,3 @@ public class AudioFileReader : WaveStream, ISampleProvider, IWaveProvider
     //    }
     //}
 }
-
-
-
