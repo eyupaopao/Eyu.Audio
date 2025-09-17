@@ -16,6 +16,9 @@ public class AudioFileReader : WaveStream, ISampleProvider, IWaveProvider
     private readonly long length;
     private readonly object lockObject;
 
+    private Stream _stream;
+    private Stream _fstream;
+
     /// <summary>
     /// Initializes a new instance of AudioFileReader
     /// </summary>
@@ -24,7 +27,7 @@ public class AudioFileReader : WaveStream, ISampleProvider, IWaveProvider
     {
         lockObject = new object();
         FileName = fileName;
-        _stream = File.OpenRead(fileName);
+        _fstream = File.OpenRead(fileName);
         CreateReaderStream();
         sourceBytesPerSample = readerStream.WaveFormat.BitsPerSample / 8 * readerStream.WaveFormat.Channels;
         sampleChannel = new SampleChannel(readerStream, false);
@@ -49,9 +52,10 @@ public class AudioFileReader : WaveStream, ISampleProvider, IWaveProvider
     /// <param Name="fileName">File Name</param>
     private void CreateReaderStream()
     {
+        var temp = _fstream ?? _stream;
         if (FileName.EndsWith(".wav", StringComparison.OrdinalIgnoreCase))
         {
-            readerStream = new WaveFileReader(_stream);
+            readerStream = new WaveFileReader(temp);
             if (readerStream.WaveFormat.Encoding != WaveFormatEncoding.Pcm && readerStream.WaveFormat.Encoding != WaveFormatEncoding.IeeeFloat)
             {
                 readerStream = WaveFormatConversionStream.CreatePcmStream(readerStream);
@@ -61,24 +65,24 @@ public class AudioFileReader : WaveStream, ISampleProvider, IWaveProvider
         else if (FileName.EndsWith(".mp3", StringComparison.OrdinalIgnoreCase))
         {
 
-            mp3FileReader = new Mp3Reader(_stream);
+            mp3FileReader = new Mp3Reader(temp);
             readerStream = mp3FileReader;
         }
         else if (FileName.EndsWith(".aiff", StringComparison.OrdinalIgnoreCase) || FileName.EndsWith(".aif", StringComparison.OrdinalIgnoreCase))
         {
-            readerStream = new AiffFileReader(_stream);
+            readerStream = new AiffFileReader(temp);
         }
         else if (FileName.EndsWith(".flac", StringComparison.OrdinalIgnoreCase))
         {
-            readerStream = new FlacReader(_stream);
+            readerStream = new FlacReader(temp);
         }
         else if (FileName.EndsWith(".ogg", StringComparison.OrdinalIgnoreCase))
         {
-            readerStream = new VorbisWaveReader(_stream);
+            readerStream = new VorbisWaveReader(temp);
         }
         //else if (FileName.EndsWith(".opus", StringComparison.OrdinalIgnoreCase))
         //{
-        //    readerStream = new OpusWaveReader(_stream);
+        //    readerStream = new OpusWaveReader(temp);
         //}
         else
         {
@@ -86,8 +90,6 @@ public class AudioFileReader : WaveStream, ISampleProvider, IWaveProvider
             readerStream = new MediaFoundationReader(FileName);
         }
     }
-
-    Stream _stream;
 
     /// <summary>
     /// File Name
@@ -196,11 +198,10 @@ public class AudioFileReader : WaveStream, ISampleProvider, IWaveProvider
     {
         if (disposing)
         {
-            if (readerStream != null)
-            {
-                readerStream.Dispose();
-                readerStream = null;
-            }
+            readerStream?.Dispose();
+            readerStream = null;
+            _fstream?.Dispose();
+            _fstream = null;
         }
         base.Dispose(disposing);
     }
