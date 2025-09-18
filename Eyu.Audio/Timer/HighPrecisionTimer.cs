@@ -52,9 +52,12 @@ public class HighPrecisionTimer : ITimer, IDisposable
     private void Run()
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
+        // 每毫秒tick
         long ticksPerMicrosecond = Stopwatch.Frequency / 1000000;
+        // 任务间隔的tick
         long intervalTicks = _periodMicroseconds * ticksPerMicrosecond;
-        int iterations = (int)Math.Max(1, intervalTicks / ticksPerMicrosecond / 10); // 确保至少为1
+        // 停顿的tick
+        int iterations = (int)Math.Max(1, (intervalTicks / ticksPerMicrosecond)); // 确保至少为1
 
         // 初始化下一个预期时间点
         _nextExpectedTick = stopwatch.ElapsedTicks;
