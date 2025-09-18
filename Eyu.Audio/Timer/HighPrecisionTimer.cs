@@ -57,7 +57,7 @@ public class HighPrecisionTimer : ITimer, IDisposable
         // 任务间隔的tick
         long intervalTicks = _periodMicroseconds * ticksPerMicrosecond;
         // 停顿的tick
-        int iterations = (int)Math.Max(1, (intervalTicks / ticksPerMicrosecond)); // 确保至少为1
+        int iterations = (int)Math.Max(1, (intervalTicks / ticksPerMicrosecond / 10)); // 确保至少为1
 
         // 初始化下一个预期时间点
         _nextExpectedTick = stopwatch.ElapsedTicks;
