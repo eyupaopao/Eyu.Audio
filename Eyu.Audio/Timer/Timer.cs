@@ -16,7 +16,7 @@ public class Timer : ITimer, IDisposable
             timer = new WindowsMediaTimer(onTick);
         else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
         {
-            timer = new OSXTimer(onTick);
+            timer = new HighPrecisionTimer(onTick);
         }
         else
         {
