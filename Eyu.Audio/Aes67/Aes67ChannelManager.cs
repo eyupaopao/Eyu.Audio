@@ -61,12 +61,16 @@ public class Aes67ChannelManager
     }
 
     Random random = new Random();
-    public IEnumerable<Sdp> GetExistSdps()
+    public IEnumerable<Sdp> GetExistSdps(string? devId)
     {
         foreach (var item in _existAes67Sdp.Values)
         {
             if ((DateTime.Now - item.LastReciveTime) < TimeSpan.FromSeconds(20))
-                yield return item;
+            {
+                if (devId == null)
+                    yield return item;
+                else if(item.DevId == devId) yield return item;                     
+            }
         }
     }
     public Sdp? GetExistSdp(string key)
