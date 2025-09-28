@@ -42,12 +42,6 @@ SAP协议头：
 |                                                               |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
  */
-
-
-public class Sdp
-{
-    #region sdp
-
     /// 1. v=：协议版本，目前为“0”。
     /// 2. o=：所有者/创建者和会话标识符。通常包括用户名、会话ID、会话版本、网络类型、地址类型和地址信息。
     /// 3. s=：会话名称。
@@ -68,46 +62,151 @@ public class Sdp
     /// 18. b=*：带宽信息（可选）。
     /// 19. k=*：加密密钥（可选）。
     /// 20. a=*：零或多个媒体属性行（可选）。
-    public string Key { get; set; }
-    public string Name { get; set; }
-    public string SourceIPAddress { get; set; }
-    public string MuticastAddress { get; set; }
-    public int MuticastPort { get; set; }
-    public uint SessId { get; set; }
-    public uint SessVersion { get; set; }
-    public float PTimems { get; set; }
-    public int PayloadType { get; set; }
-    public string PtpMaster { get; set; }
-    public int Domain { get; set; }
-    public string RtpMap { get; set; }
-    public string? Info { get; set; }
-    public byte[] SapBytes { get; set; }
-    public string? DevId { get; set; }
 
+public class Sdp
+{
+    #region sdp
+
+    /// <summary>
+    /// sdp id
+    /// </summary>
+    public string Key { get; set; }
+    /// <summary>
+    /// 设备id
+    /// </summary>
+    public string? DevId { get; set; }
+    /// <summary>
+    /// 名称
+    /// </summary>
+    public string Name { get; set; }
+    /// <summary>
+    /// 发送源地址
+    /// </summary>
+    public string SourceIPAddress { get; set; }
+    /// <summary>
+    /// 组播地址
+    /// </summary>
+    public string MuticastAddress { get; set; }
+    /// <summary>
+    /// 组播端口
+    /// </summary>
+    public int MuticastPort { get; set; }
+    /// <summary>
+    /// 
+    /// </summary>
+    public uint SessId { get; set; }
+    /// <summary>
+    /// 
+    /// </summary>
+    public uint SessVersion { get; set; }
+    /// <summary>
+    /// 包时间
+    /// </summary>
+    public float PTimems { get; set; }
+    /// <summary>
+    /// 负载类型
+    /// </summary>
+    public int PayloadType { get; set; }
+    /// <summary>
+    /// 主时钟编码
+    /// </summary>
+    public string PtpMaster { get; set; }
+    /// <summary>
+    /// 时钟域
+    /// </summary>
+    public int Domain { get; set; }
+    /// <summary>
+    /// rtp映射
+    /// </summary>
+    public string RtpMap { get; set; }
+    /// <summary>
+    /// 会话信息
+    /// </summary>
+    public string? Info { get; set; }
+    /// <summary>
+    /// sap协议头
+    /// </summary>
+    public byte[] SapBytes { get; set; }
+    /// <summary>
+    /// 音频编码格式
+    /// </summary>
     public string AudioEncoding { get; set; }
+    /// <summary>
+    /// 采样率
+    /// </summary>
     public int SampleRate { get; set; }
     public int SamplingRate { get; set; }
+    /// <summary>
+    /// 通道数
+    /// </summary>
     public int Channels { get; set; }
+    /// <summary>
+    /// 持续时间
+    /// </summary>
     public int Duration { get; set; }
+    /// <summary>
+    /// 开始时间
+    /// </summary>
     public long StartTime { get; set; } = 0;
+    /// <summary>
+    /// 结束时间
+    /// </summary>
     public long StopTime { get; set; } = 0;
-    public bool IsDelete { get; set; }
+    /// <summary>
+    /// 每包数据采样数
+    /// </summary>
 
     private int SamplesPerFrame;
+    /// <summary>
+    /// 最后一次收到这个sdp包的时间。
+    /// </summary>
     public DateTime LastReciveTime { get; set; }
+    /// <summary>
+    /// sdp原始字符串
+    /// </summary>
     public string SdpString { get; set; }
+    /// <summary>
+    /// sdp原始字节码
+    /// </summary>
     public byte[] SdpBytes { get; set; }
 
     #endregion
     #region sap
+    /// <summary>
+    /// sap包头
+    /// </summary>
     public byte SapFlags { get; set; } = 0b0010_0000;
+    /// <summary>
+    /// sap版本
+    /// </summary>
     public int SapVersion => (0b0010_0000 & SapFlags) >> 5;
+    /// <summary>
+    /// 地址类型
+    /// </summary>
     public AddressFamily AddressType => (SapFlags & 0b0001_0000) == 0b0001_0000 ? AddressFamily.InterNetworkV6 : AddressFamily.InterNetwork;
+    /// <summary>
+    /// "Deletion"：表示这个流被删除。 "Announcement"：表示流正常发送
+    /// </summary>
     public string SapMessage => (SapFlags & 0b0000_0100) == 0b0000_0100 ? "Deletion" : "Announcement";
+    /// <summary>
+    /// sdp消息哈希
+    /// </summary>
     public ushort MessageHash { get; set; }
-    private byte[] srcIp;
+    /// <summary>
+    /// 源地址
+    /// </summary>
+    private byte[] SrcIp;
+    /// <summary>
+    /// 认证长度（0 = 无认证，>0 = 存在认证数据）
+    /// </summary>
     public int AuthLen { get; set; } = 0;
+    /// <summary>
+    /// 认证数据（如 HMAC 哈希，长度 = AuthLen）
+    /// </summary>
     public byte[] AuthData { get; set; } = [];
+    /// <summary>
+    /// sap负载类型：固定"application/sdp"
+    /// </summary>
     public string SapPayloadType { get; set; } = "application/sdp";
     public Sdp()
     {
@@ -157,7 +256,7 @@ public class Sdp
         RtpMap = $"{PayloadType} {encoding}/{sampleRate}/{channels}";
         //RtpMap = rtpMap;
         Info = info;
-        srcIp = IPAddress.Parse(SourceIPAddress).GetAddressBytes();
+        SrcIp = IPAddress.Parse(SourceIPAddress).GetAddressBytes();
         SapFlags = 0b0010_0000;
         if (IPAddress.TryParse(muticastAddress, out var address) && address.AddressFamily == AddressFamily.InterNetworkV6)
         {
@@ -200,7 +299,7 @@ public class Sdp
         sapHeader[0] = (byte)(deletion ? 0b0010_0100 : 0b0010_0000);
         sapHeader[2] = (byte)(MessageHash & 0xFF);
         sapHeader[3] = (byte)(MessageHash >> 8);
-        Buffer.BlockCopy(srcIp, 0, sapHeader, 4, 4);
+        Buffer.BlockCopy(SrcIp, 0, sapHeader, 4, 4);
         var sapContentType = Encoding.UTF8.GetBytes("application/sdp\0");
         SapBytes = sapHeader.Concat(sapContentType).Concat(SdpBytes).ToArray();
         return SapBytes;
