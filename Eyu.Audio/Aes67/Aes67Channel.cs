@@ -30,6 +30,7 @@ public class Aes67Channel : IDisposable
     private uint _sendFrameCount;
     private readonly CancellationTokenSource _cts = new CancellationTokenSource();
     private readonly List<IPAddress> localAddresses;
+    private readonly string name;
     BufferedWaveProvider _inputProvider;
     IWaveProvider _outputProvider;
     public uint SessId { get; }
@@ -38,7 +39,7 @@ public class Aes67Channel : IDisposable
     /// <summary>
     /// 构造AES67广播发送器
     /// </summary>
-    /// <param name="sdp">SDP会话描述</param>
+    /// <param mediaName="sdp">SDP会话描述</param>
     public Aes67Channel(uint sessId, List<IPAddress> localAddresses, IPAddress muticastAddress, int muticastPort, string name, string? info = null)
     {
         // 强制统一输出格式。
@@ -70,6 +71,7 @@ public class Aes67Channel : IDisposable
         SessId = sessId;
         this.localAddresses = localAddresses;
         MuticastAddress = muticastAddress;
+        this.name = name;
         // 初始化多播端点
         MulticastEndpoint = new IPEndPoint(MuticastAddress, muticastPort);
         // 初始化RTP转换器
@@ -165,19 +167,18 @@ public class Aes67Channel : IDisposable
                 count = bytes.Length - offset;
             _inputProvider.AddSamples(bytes, offset, count);
             buildFrames();
-
         }
         catch
         {
-
         }
     }
 
-    public void ChangeName(string name)
+    public void SetMediaName(string? mediaName)
     {
+        if (string.IsNullOrEmpty(mediaName)) return;
         foreach (var sdp in Sdps.Values)
         {
-            sdp.SetName(name);
+            sdp.SetName(name + mediaName);
         }
     }
     void buildFrames()
