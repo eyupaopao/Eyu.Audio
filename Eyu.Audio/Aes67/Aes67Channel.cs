@@ -31,8 +31,8 @@ public class Aes67Channel : IDisposable
     private readonly CancellationTokenSource _cts = new CancellationTokenSource();
     private readonly List<IPAddress> localAddresses;
     private readonly string name;
-    BufferedWaveProvider _inputProvider;
-    IWaveProvider _outputProvider;
+    BufferedWaveProvider _inputProvider = null!;
+    IWaveProvider _outputProvider = null!;
     public uint SessId { get; }
     internal IPAddress MuticastAddress { get; }
     #endregion
@@ -93,7 +93,7 @@ public class Aes67Channel : IDisposable
         {
             foreach (var sdp in Sdps.Values)
             {
-                sdp.SetName(name);
+                sdp.SetInfo(name);
             }
         }
         _rtpConverter.Initialize();
@@ -178,7 +178,7 @@ public class Aes67Channel : IDisposable
         if (string.IsNullOrEmpty(mediaName)) return;
         foreach (var sdp in Sdps.Values)
         {
-            sdp.SetName(name + mediaName);
+            sdp.SetInfo(mediaName);
         }
     }
     void buildFrames()

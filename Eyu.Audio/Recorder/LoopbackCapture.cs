@@ -20,7 +20,7 @@ namespace Eyu.Audio.Recorder
             return AudioClientStreamFlags.Loopback | base.GetAudioClientStreamFlags();
         }
 
-        public void StartRecording()
+        public new void StartRecording()
         {
             try
             {
@@ -32,7 +32,7 @@ namespace Eyu.Audio.Recorder
             }
         }
 
-        public void StopRecording()
+        public new void StopRecording()
         {
             capture.StopRecording();
         }

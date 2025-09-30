@@ -95,7 +95,7 @@ public class PTPTimestamp
         return a > b || a == b;
     }
 
-    public override bool Equals(object obj)
+    public override bool Equals(object? obj)
     {
         return obj is PTPTimestamp timestamp && this == timestamp;
     }
@@ -108,23 +108,23 @@ public class PTPTimestamp
     // 其他运算符保持不变...
     public static PTPTimestamp operator +(PTPTimestamp a, PTPTimestamp b)
     {
-        if (a == null) throw new ArgumentNullException(nameof(a));
-        if (b == null) throw new ArgumentNullException(nameof(b));
+        if (a is null) throw new ArgumentNullException(nameof(a));
+        if (b is null) throw new ArgumentNullException(nameof(b));
 
         return new PTPTimestamp(a.Seconds + b.Seconds, a.Nanoseconds + b.Nanoseconds);
     }
 
     public static PTPTimestamp operator -(PTPTimestamp a, PTPTimestamp b)
     {
-        if (a == null) throw new ArgumentNullException(nameof(a));
-        if (b == null) throw new ArgumentNullException(nameof(b));
+        if (a is null) throw new ArgumentNullException(nameof(a));
+        if (b is null) throw new ArgumentNullException(nameof(b));
 
         return new PTPTimestamp(a.Seconds - b.Seconds, a.Nanoseconds - b.Nanoseconds);
     }
 
     public static PTPTimestamp operator /(PTPTimestamp a, int b)
     {
-        if (a == null) throw new ArgumentNullException(nameof(a));
+        if (a is null) throw new ArgumentNullException(nameof(a));
         if (b == 0) throw new DivideByZeroException("除数不能为零");
 
         long secondsQuotient = a.Seconds / b;

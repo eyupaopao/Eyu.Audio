@@ -70,23 +70,23 @@ public class Sdp
     /// <summary>
     /// sdp id
     /// </summary>
-    public string Key { get; set; }
+    public string? Key { get; set; } = null!;
     /// <summary>
     /// 设备id
     /// </summary>
-    public string? DevId { get; set; }
+    public string? DevId { get; set; } = null!;
     /// <summary>
     /// 名称
     /// </summary>
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
     /// <summary>
     /// 发送源地址
     /// </summary>
-    public string SourceIPAddress { get; set; }
+    public string SourceIPAddress { get; set; } = null!;
     /// <summary>
     /// 组播地址
     /// </summary>
-    public string MuticastAddress { get; set; }
+    public string MuticastAddress { get; set; } = null!;
     /// <summary>
     /// 组播端口
     /// </summary>
@@ -110,7 +110,7 @@ public class Sdp
     /// <summary>
     /// 主时钟编码
     /// </summary>
-    public string PtpMaster { get; set; }
+    public string PtpMaster { get; set; } = null!;
     /// <summary>
     /// 时钟域
     /// </summary>
@@ -118,19 +118,19 @@ public class Sdp
     /// <summary>
     /// rtp映射
     /// </summary>
-    public string RtpMap { get; set; }
+    public string RtpMap { get; set; } = null!;
     /// <summary>
     /// 会话信息
     /// </summary>
-    public string? Info { get; set; }
+    public string? Info { get; set; } = null!;
     /// <summary>
     /// sap协议头
     /// </summary>
-    public byte[] SapBytes { get; set; }
+    public byte[] SapBytes { get; set; } = null!;
     /// <summary>
     /// 音频编码格式
     /// </summary>
-    public string AudioEncoding { get; set; }
+    public string AudioEncoding { get; set; } = null!;
     /// <summary>
     /// 采样率
     /// </summary>
@@ -164,11 +164,11 @@ public class Sdp
     /// <summary>
     /// sdp原始字符串
     /// </summary>
-    public string SdpString { get; set; }
+    public string SdpString { get; set; } = null!;
     /// <summary>
     /// sdp原始字节码
     /// </summary>
-    public byte[] SdpBytes { get; set; }
+    public byte[] SdpBytes { get; set; } = null!;
 
     #endregion
     #region sap
@@ -195,7 +195,7 @@ public class Sdp
     /// <summary>
     /// 源地址
     /// </summary>
-    private byte[] SrcIp;
+    private byte[] SrcIp = null!;
     /// <summary>
     /// 认证长度（0 = 无认证，>0 = 存在认证数据）
     /// </summary>
@@ -263,7 +263,7 @@ public class Sdp
             SapFlags |= 0b0001_0000;
         }
         BuildSdpBytes();
-        Key = $"{SessId}{MessageHash}";
+        Key = $"{Name}{SessId}";
     }
 
     private void BuildSdpBytes()
@@ -275,6 +275,7 @@ public class Sdp
             $"c=IN IP4 {MuticastAddress}/32",                       // 连接信息
             $"t={StartTime} {StopTime}",                            // 活动时间 开始时间和结束时间均为0，表示会话永久有效。
             $"m=audio {MuticastPort} RTP/AVP 96",                   // 媒体名称和传输地址
+            $"a=charset:UTF-8",                                     // 关键：声明字符编码为UTF-8
         };
         if (Info != null)
         {
@@ -289,7 +290,7 @@ public class Sdp
             $"a=framecount:{SamplesPerFrame}",                      // 包采样数
         });
         SdpString = string.Join("\r\n", sdpConfig);
-        SdpBytes = Encoding.Default.GetBytes(SdpString);
+        SdpBytes = Encoding.UTF8.GetBytes(SdpString);
         MessageHash = Crc16.ComputeChecksum(Crc16Algorithm.Standard, SdpBytes);
     }
 
@@ -333,7 +334,7 @@ public class Sdp
 
             // 3. 提取并解析SDP内容
             ParseSdpContent(sdpStartIndex);
-            Key = $"{SessId}{MessageHash}";
+            Key = $"{Name}{SessId}";
         }
         catch (Exception ex)
         {
@@ -540,9 +541,9 @@ public class Sdp
         return SapMessage + " " + SapPayloadType + "\r\n" + SdpString;
     }
 
-    internal void SetName(string name)
+    internal void SetInfo(string info)
     {
-        Name = name;
+        Info = info;
         BuildSdpBytes();
     }
 }

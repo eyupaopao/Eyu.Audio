@@ -85,8 +85,6 @@ class UnixSoundDevice : ISoundDevice
         IntPtr buffer = Marshal.AllocHGlobal((int)bufferSize);
 
         Console.WriteLine("start play while");
-        bool started = false;
-        int writeCount = 0;
         while (!_wasDisposed && !cancellationToken.IsCancellationRequested)
         {
             if (PlaybackState == PlaybackState.Stopped)
@@ -329,7 +327,7 @@ class UnixSoundDevice : ISoundDevice
         saveStream.Flush();
     }
 
-    unsafe void ReadStream(Action<byte[]> onDataAvailable, WavHeader header, ref nint @params, ref int dir, CancellationToken cancellationToken)
+    unsafe void ReadStream(Action<byte[]>? onDataAvailable, WavHeader header, ref nint @params, ref int dir, CancellationToken cancellationToken)
     {
         ulong frames;
 
