@@ -70,7 +70,7 @@ public class Sdp
     /// <summary>
     /// sdp id
     /// </summary>
-    public string? Key { get; set; } = null!;
+    public string Key { get; set; } = string.Empty;
     /// <summary>
     /// 设备id
     /// </summary>
@@ -135,7 +135,6 @@ public class Sdp
     /// 采样率
     /// </summary>
     public int SampleRate { get; set; }
-    public int SamplingRate { get; set; }
     /// <summary>
     /// 通道数
     /// </summary>
@@ -517,7 +516,6 @@ public class Sdp
             AudioEncoding = parts[1];
             int.TryParse(parts[2], out int sampleRate);
             SampleRate = sampleRate;
-            SamplingRate = sampleRate; // 同步两个采样率属性
             int.TryParse(parts[3], out int channels);
             Channels = channels;
         }
