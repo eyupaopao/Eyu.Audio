@@ -1,7 +1,7 @@
 ﻿using Eyu.Audio.Utils;
 using System;
 
-namespace Eyu.Audio;
+namespace Eyu.Audio.PTP;
 
 public class PTPMessage
 {
@@ -59,7 +59,7 @@ public class PTPMessage
         // 前16位在偏移34，后32位在偏移36
         ushort secondsHigh = message.ReadUInt16BE(34);  // 高16位
         uint secondsLow = message.ReadUInt32BE(36);     // 低32位
-        timestamp[0] = ((long)secondsHigh << 32) | secondsLow;  // 合并为48位秒数
+        timestamp[0] = (long)secondsHigh << 32 | secondsLow;  // 合并为48位秒数
 
         // 读取纳秒部分（32位，偏移40）
         uint nanoseconds = message.ReadUInt32BE(40);
@@ -228,7 +228,7 @@ public class PTPMessage
             Priority1 = message[44];
             ClockClass = message[45];
             ClockAccuracy = message[46];
-            ClockVariance = (ushort)((message[47] << 8) | message[48]);
+            ClockVariance = (ushort)(message[47] << 8 | message[48]);
             Priority2 = message[49];
             TimeSource = message[51];
             StepsRemoved = message[52];

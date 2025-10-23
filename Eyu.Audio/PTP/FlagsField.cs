@@ -1,4 +1,4 @@
-﻿namespace Eyu.Audio
+﻿namespace Eyu.Audio.PTP
 {
     public static class FlagsField
     {

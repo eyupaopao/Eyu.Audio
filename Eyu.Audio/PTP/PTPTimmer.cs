@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Eyu.Audio;
+namespace Eyu.Audio.PTP;
 
 internal class PTPTimmer
 {

@@ -6,7 +6,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Eyu.Audio
+namespace Eyu.Audio.PTP
 {
     public class PTPClient
     {
