@@ -5,24 +5,6 @@ namespace Eyu.Audio.PTP;
 
 public class PTPMessage
 {
-
-    // delay_req 报文 id
-    public static int req_sequenc = 0;
-    public static byte[] PTP_DELAY_REQ()
-    {
-        var length = 52;
-        var buffer = new byte[length];
-        // 每次获取都生成一个新的id，小于 0x10000;
-        req_sequenc = (req_sequenc + 1) % 0x10000;
-        buffer[0] = MessageType.DELAY_REQ;// type
-        buffer[1] = 2;// version
-        buffer[2] = (byte)(length >> 8);
-        buffer[3] = (byte)(length & 0xff);
-        // 写id 
-        buffer[30] = (byte)(req_sequenc >> 8);
-        buffer[31] = (byte)(req_sequenc & 0xff);
-        return buffer;
-    }
     public byte[] RawData { get; private set; }
     public PTPMessage(byte[] message)
     {
@@ -128,18 +110,18 @@ public class PTPMessage
     /// PTPv2 flags 字段包含关于消息类型的进一步详细信息，尤其在使用一步或两步实现的情况下。一步或两步的实现由 flags 字段的前八位中的 TWO_STEP 位控制。
     /// </summary>
     public int Flags { get; set; }
-    public bool PTP_LI_61 => (Flags & FlagsField.PTP_LI_61) == FlagsField.PTP_LI_61;
-    public bool PTP_LI_59 => (Flags & FlagsField.PTP_LI_59) == FlagsField.PTP_LI_61;
-    public bool PTP_UTC_REASONABLE => (Flags & FlagsField.PTP_UTC_REASONABLE) == FlagsField.PTP_UTC_REASONABLE;
-    public bool PTP_TIMESCALE => (Flags & FlagsField.PTP_TIMESCALE) == FlagsField.PTP_TIMESCALE;
-    public bool TIME_TRACEABLE => (Flags & FlagsField.TIME_TRACEABLE) == FlagsField.TIME_TRACEABLE;
-    public bool FREQUENCY_TRACEABLE => (Flags & FlagsField.FREQUENCY_TRACEABLE) == FlagsField.FREQUENCY_TRACEABLE;
-    public bool PTP_ALTERNATE_MASTER => (Flags & FlagsField.PTP_ALTERNATE_MASTER) == FlagsField.PTP_ALTERNATE_MASTER;
-    public bool PTP_TWO_STEP => (Flags & FlagsField.PTP_TWO_STEP) == FlagsField.PTP_TWO_STEP;
-    public bool PTP_UNICAST => (Flags & FlagsField.PTP_UNICAST) == FlagsField.PTP_UNICAST;
-    public bool PTP_Profile_Specific_1 => (Flags & FlagsField.PTP_Profile_Specific_1) == FlagsField.PTP_Profile_Specific_1;
-    public bool PTP_Profile_Specific_2 => (Flags & FlagsField.PTP_Profile_Specific_2) == FlagsField.PTP_Profile_Specific_2;
-    public bool PTP_SECURITY => (Flags & FlagsField.PTP_SECURITY) == FlagsField.PTP_SECURITY;
+    public bool PTP_LI_61 => (Flags & FlagField.PTP_LI_61) == FlagField.PTP_LI_61;
+    public bool PTP_LI_59 => (Flags & FlagField.PTP_LI_59) == FlagField.PTP_LI_61;
+    public bool PTP_UTC_REASONABLE => (Flags & FlagField.PTP_UTC_REASONABLE) == FlagField.PTP_UTC_REASONABLE;
+    public bool PTP_TIMESCALE => (Flags & FlagField.PTP_TIMESCALE) == FlagField.PTP_TIMESCALE;
+    public bool TIME_TRACEABLE => (Flags & FlagField.TIME_TRACEABLE) == FlagField.TIME_TRACEABLE;
+    public bool FREQUENCY_TRACEABLE => (Flags & FlagField.FREQUENCY_TRACEABLE) == FlagField.FREQUENCY_TRACEABLE;
+    public bool PTP_ALTERNATE_MASTER => (Flags & FlagField.PTP_ALTERNATE_MASTER) == FlagField.PTP_ALTERNATE_MASTER;
+    public bool PTP_TWO_STEP => (Flags & FlagField.PTP_TWO_STEP) == FlagField.PTP_TWO_STEP;
+    public bool PTP_UNICAST => (Flags & FlagField.PTP_UNICAST) == FlagField.PTP_UNICAST;
+    public bool PTP_Profile_Specific_1 => (Flags & FlagField.PTP_Profile_Specific_1) == FlagField.PTP_Profile_Specific_1;
+    public bool PTP_Profile_Specific_2 => (Flags & FlagField.PTP_Profile_Specific_2) == FlagField.PTP_Profile_Specific_2;
+    public bool PTP_SECURITY => (Flags & FlagField.PTP_SECURITY) == FlagField.PTP_SECURITY;
     #endregion
     /// <summary>
     /// 偏移 8, 8byte
@@ -236,36 +218,4 @@ public class PTPMessage
     }
 
 
-}
-public static class MessageType
-{
-    // Event message
-    public const int SYNC = 0X0;
-    public const int DELAY_REQ = 0x1;
-    public const int PATH_DELAY_REQ = 0x2;
-    public const int PATH_DELAY_RESP = 0x3;
-    public static bool IsEvent(int value)
-    {
-        return value >= SYNC && value <= PATH_DELAY_RESP;
-    }
-    public static bool IsGeneral(int value)
-    {
-        return value >= FOLLOW_UP && value <= MANAGEMENT;
-    }
-    // General message
-    public const int FOLLOW_UP = 0x8;
-    public const int DELAY_RESP = 0x9;
-    public const int PATH_DELAY_FOLLOW_UP = 0xA;
-    public const int ANNOUNCE = 0xB;
-    public const int SIGNALING = 0xC;
-    public const int MANAGEMENT = 0xD;
-}
-public static class Control
-{
-    public static byte Sync = 0x00;
-    public static byte Delay_Req = 0x01;
-    public static byte Follow_Up = 0x02;
-    public static byte Delay_Resp = 0x03;
-    public static byte Management = 0x04;
-    public static byte AllOthers = 0x05;
 }

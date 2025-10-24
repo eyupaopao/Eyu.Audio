@@ -30,7 +30,22 @@ public class PTPTimestamp
         Nanoseconds = (long)(totalNanoseconds % NanosecondsPerSecond);
         Normalize();
     }
-
+    public byte[] GetTimestamp()
+    {
+        var timestampBytes = new byte[10];
+        // PTP使用48位表示秒数，所以秒数部分占6字节
+        timestampBytes[0] = (byte)(Seconds >> 40); // 高字节
+        timestampBytes[1] = (byte)(Seconds >> 32);
+        timestampBytes[2] = (byte)(Seconds >> 24);
+        timestampBytes[3] = (byte)(Seconds >> 16);
+        timestampBytes[4] = (byte)(Seconds >> 8);
+        timestampBytes[5] = (byte)(Seconds & 0xFF); // 低字节
+        timestampBytes[6] = (byte)(Nanoseconds >> 24); // 纳秒高字节
+        timestampBytes[7] = (byte)(Nanoseconds >> 16);
+        timestampBytes[8] = (byte)(Nanoseconds >> 8);
+        timestampBytes[9] = (byte)(Nanoseconds & 0xFF); // 纳秒低字节
+        return timestampBytes;
+    }
     private void Normalize()
     {
         if (Nanoseconds >= NanosecondsPerSecond)
