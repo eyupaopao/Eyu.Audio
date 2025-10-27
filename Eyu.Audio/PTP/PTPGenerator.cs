@@ -9,8 +9,7 @@ namespace Eyu.Audio.PTP;
 public static class PTPGenerator
 {
     public const int version = 2;
-    static ushort req_seq = 0;
-    public static byte[] DelayReq(byte domain, byte[] clockId, int LogMsgInterval)
+    public static byte[] DelayReq(byte domain, byte[] clockId, ushort req_seq, int LogMsgInterval)
     {
         var length = 52;
         var buffer = new byte[length];
@@ -22,11 +21,14 @@ public static class PTPGenerator
         buffer[2] = (byte)(length >> 8);
         buffer[3] = (byte)(length & 0xff);
         buffer[4] = domain;
-        // 5-6 标志位 不需要
+        // 5-6 标志位
+        buffer[6] = (byte)(FlagField.PTP_TWO_STEP >> 8);
+        buffer[7] = (byte)(FlagField.PTP_TWO_STEP & 0xFF);
         // 8-15 （CorrectionField）
         Array.Clear(buffer, 8, 8);
         // 16-19 保留字段
-        // 20-29 源时钟ID
+        Array.Clear(buffer, 16, 4);
+        // 20-27 源时钟ID
         Array.Copy(clockId, 0, buffer, 20, 8);
         // 28-29 源端口ID
         // 序列号 
@@ -35,12 +37,12 @@ public static class PTPGenerator
         // 控制域
         buffer[32] = ControlField.Delay_Req;
         // logMsgInterval 录入消息周期，PTP消息的发送时间间隔，由消息类型决定。
-        // logMsgInterval字段的值是一个整数（通常用符号logInterval表示），消息的实际发送间隔（T）通过以下公式计算：T = 2^logInterval 秒
+        // logMsgInterval 字段的值是一个整数（通常用符号logInterval表示），消息的实际发送间隔（T）通过以下公式计算：T = 2^logInterval 秒
         // Announce 消息：用于主从时钟角色协商，默认logInterval=1（即 2 秒），常见范围为-3（125ms）到5（32 秒）。
         // Sync 消息：如前文所述，默认值因模式而异（如 IEEE 1588v2 默认logInterval = -3，对应 125ms）。
         // Delay_Req / Delay_Resp 消息：从时钟向主时钟请求延迟测量，默认logInterval通常与 Sync 消息一致（确保延迟测量频率匹配同
         buffer[33] = (byte)LogMsgInterval;
-        //PTP Specified Message Field n byte  34        PTP消息体和消息扩展字节。
+        //PTP Specified Message Field n byte 34 PTP消息体和消息扩展字节。
         return buffer;
     }
     public static byte[] DelayResp(byte domain, byte[] clockId, ushort req_seq, byte[] receiveTimestamp, byte[] requestId)
@@ -48,16 +50,19 @@ public static class PTPGenerator
         var length = 54;
         var buffer = new byte[length];
         buffer[0] = MessageType.DELAY_RESP; // type
-        buffer[1] = 2; // version
+        buffer[1] = version;
         // 写长度 messagelenght
         buffer[2] = (byte)(length >> 8);
         buffer[3] = (byte)(length & 0xff);
         buffer[4] = domain;
-        // 5-6 标志位 不需要
+        // 标志位 - 保持与Sync消息一致
+        buffer[6] = (byte)(FlagField.PTP_TWO_STEP >> 8);
+        buffer[7] = (byte)(FlagField.PTP_TWO_STEP & 0xFF);
         // 8-15 （CorrectionField）
         Array.Clear(buffer, 8, 8);
         // 16-19 保留字段
-        // 20-29 源时钟ID
+        Array.Clear(buffer, 16, 4);
+        // 20-27 源时钟ID
         Array.Copy(clockId, 0, buffer, 20, 8);
         // 28-29 源端口ID
         // 序列号 
@@ -72,12 +77,10 @@ public static class PTPGenerator
         Array.Copy(requestId, 0, buffer, 44, 10);
         return buffer;
     }
-    static ushort syc_seq = 0;
-    public static byte[] Sync(byte domain, byte[] clockId, int LogMsgInterval)
+    public static byte[] Sync(byte domain, byte[] clockId, ushort seqId, int LogMsgInterval)
     {
         var length = 44;
         var buffer = new byte[length];
-        var seqId = syc_seq += 1;
         buffer[0] = MessageType.SYNC; // type
         buffer[1] = version;
         // messagelenght
@@ -90,7 +93,8 @@ public static class PTPGenerator
         // 8-15 （CorrectionField）
         Array.Clear(buffer, 8, 8);
         // 16-19 保留字段
-        // 20-29 源时钟ID
+        Array.Clear(buffer, 16, 4);
+        // 20-27 源时钟ID
         Array.Copy(clockId, 0, buffer, 20, 8);
         // 28-29 源端口ID
         // 序列号 
@@ -114,11 +118,14 @@ public static class PTPGenerator
         buffer[2] = (byte)(length >> 8);
         buffer[3] = (byte)(length & 0xff);
         buffer[4] = domain;
-        // 5-6 标志位 不需要
+        // 6-7 标志位 
+        buffer[6] = (byte)(FlagField.PTP_TWO_STEP >> 8);
+        buffer[7] = (byte)(FlagField.PTP_TWO_STEP & 0xFF);
         // 8-15 （CorrectionField）
         Array.Clear(buffer, 8, 8);
         // 16-19 保留字段
-        // 20-29 源时钟ID
+        Array.Clear(buffer, 16, 4);
+        // 20-27 源时钟ID
         Array.Copy(clockId, 0, buffer, 20, 8);
         // 28-29 源端口ID
         // 序列号 
@@ -234,4 +241,63 @@ ControlField	    1byte	     32          控制域，由消息类型决定：
 LogMsgInterval 	    1byte	     33           录入消息周期，PTP消息的发送时间间隔，由消息类型决定。
 PTP Specified Message Field	n byte	34        PTP消息体和消息扩展字节。
      */
+
+    /// <summary>
+    /// 生成服务器ID
+    /// </summary>
+    public static byte[] GenerateClockId()
+    {
+        // 使用网络接口的MAC地址生成唯一ID
+        string clockId;
+        try
+        {
+            var macAddress = GetMacAddress();
+            clockId = BitConverter.ToString(macAddress).Replace("-", "").ToLower();
+        }
+        catch
+        {
+            // 如果获取MAC地址失败，使用随机ID
+            clockId = Guid.NewGuid().ToString("N").Substring(0, 16).ToLower();
+        }
+        return GetClockIdBytes(clockId);
+    }
+    /// <summary>
+    /// 将字符串转换为字节数组
+    /// </summary>
+    private static byte[] StringToByteArray(string hex)
+    {
+        return Enumerable.Range(0, hex.Length)
+                         .Where(x => x % 2 == 0)
+                         .Select(x => Convert.ToByte(hex.Substring(x, 2), 16))
+                         .ToArray();
+    }
+
+    /// <summary>
+    /// 获取服务器ID字节数组
+    /// </summary>
+    private static byte[] GetClockIdBytes(string clockId)
+    {
+        var idBytes = new byte[8];
+        var serverIdBytes = StringToByteArray(clockId.PadRight(16, '0').Substring(0, 16));
+        Array.Copy(serverIdBytes, idBytes, 8);
+        return idBytes;
+    }
+
+    /// <summary>
+    /// 获取本机MAC地址
+    /// </summary>
+    public static byte[] GetMacAddress()
+    {
+        var networkInterfaces = System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces();
+        foreach (var ni in networkInterfaces.Where(n => n.OperationalStatus == System.Net.NetworkInformation.OperationalStatus.Up && n.NetworkInterfaceType != System.Net.NetworkInformation.NetworkInterfaceType.Loopback))
+        {
+            var mac = ni.GetPhysicalAddress().GetAddressBytes();
+            if (mac.Length == 6 && mac.Any(b => b != 0))
+                return mac;
+        }
+
+        // 如果没有找到合适的网络接口，返回默认值
+        return [0x00, 0x11, 0x22, 0x33, 0x44, 0x55];
+    }
+
 }

@@ -17,7 +17,9 @@ namespace Eyu.Audio.PTP
 
         // ptp 设置项
         // 选择一个地址
-        public int Domain { get; private set; }
+        public byte Domain { get; private set; }
+        public byte[] ClockId { get; private set; }
+
         IPAddress domainAddress => IPAddress.Parse(ptpMulticastAddrs[Domain]);
         // 当前主机id
         string ptpMaster = "";
@@ -38,7 +40,7 @@ namespace Eyu.Audio.PTP
         // sync 报文 id
         int sync_seq = 0;
         // delay_req 报文 id
-        int req_seq = 0;
+        ushort req_seq = 0;
         // 最近一次同步时间(ms)
         long lastSync = 0;
         static PTPClient instance;
@@ -51,33 +53,25 @@ namespace Eyu.Audio.PTP
         /// <param Name="domain">选择PTP域</param>
         /// <param Name="callback">连接成功回调函数</param>
         /// <param Name="syncInterval">同步间隔</param>
-        public void Start(string? addr = null, int domain = 0, uint syncInterval = 300)
+        public void Start(string? addr = null, byte domain = 0, uint syncInterval = 300)
         {
             if (!string.IsNullOrEmpty(addr))
             {
                 this.addr = addr;
             }
             Domain = domain;
-
+            ClockId = PTPGenerator.GenerateClockId();
             this.syncInterval = syncInterval;
             cts = new CancellationTokenSource();
             Task.Run(ptpClientGeneralHandler);
             Task.Run(ptpEventHandler);
         }
 
-
-
         public bool IsSynced => sync;
         public bool IsMaster { get; private set; } = false;
         public string PtpMaster => ptpMaster;
 
-        public PTPTimestamp UtcNow
-        {
-            get
-            {
-                return new PTPTimestamp(PTPTimmer.UtcNowNanoseconds) - Offset;
-            }
-        }
+
         public PTPTimestamp Timestamp
         {
             get
@@ -86,34 +80,32 @@ namespace Eyu.Audio.PTP
             }
         }
 
-
-
         public void Stop()
         {
             cts?.Cancel();
             ptpClientEvent.Close();
             ptpClientGeneral.Close();
         }
-        /// <summary>
-        /// 构建delay_req
-        /// </summary>
-        /// <returns></returns>
-        byte[] ptp_delay_req()
-        {
-            var length = 52;
-            var buffer = new byte[length];
-            // 每次获取都生成一个新的id，小于 0x10000;
-            req_seq = (req_seq + 1) % 0x10000;
-            buffer[0] = MessageType.DELAY_REQ;// type
-            buffer[1] = 2;// version
-            // 写长度 messagelenght
-            buffer[2] = (byte)(length >> 8);
-            buffer[3] = (byte)(length & 0xff);
-            // 写id 
-            buffer[30] = (byte)(req_seq >> 8);
-            buffer[31] = (byte)(req_seq & 0xff);
-            return buffer;
-        }
+        ///// <summary>
+        ///// 构建delay_req
+        ///// </summary>
+        ///// <returns></returns>
+        //byte[] ptp_delay_req()
+        //{
+        //    var length = 52;
+        //    var buffer = new byte[length];
+        //    // 每次获取都生成一个新的id，小于 0x10000;
+        //    req_seq = (req_seq + 1) % 0x10000;
+        //    buffer[0] = MessageType.DELAY_REQ;// type
+        //    buffer[1] = 2;// version
+        //    // 写长度 messagelenght
+        //    buffer[2] = (byte)(length >> 8);
+        //    buffer[3] = (byte)(length & 0xff);
+        //    // 写id 
+        //    buffer[30] = (byte)(req_seq >> 8);
+        //    buffer[31] = (byte)(req_seq & 0xff);
+        //    return buffer;
+        //}
 
         // 获取与ptp服务器对时后的时间戳
         PTPTimestamp getCorrentedTime()
@@ -143,8 +135,6 @@ namespace Eyu.Audio.PTP
                     var buffer = ptpClientGeneral.Receive(ref remote);
                     if (buffer.Length < 31) continue;
                     var message = new PTPMessage(buffer);
-                    var source = BitConverter.ToString(message.SourcePortIdentity[0..8]).ToLower() + ":0";
-                    var sourceAlt = BitConverter.ToString(message.SourcePortIdentity).Replace('-', ':').ToLower();
                     // 检查版本和连接地址
                     if (message.Version != 2 || message.Domain != Domain)
                         continue;
@@ -154,7 +144,9 @@ namespace Eyu.Audio.PTP
                         // sync 报文的精确发送时间 t1
                         t1 = message.Timestamp;
                         // 发送delay_req报文
-                        ptpClientEvent.Send(ptp_delay_req(), new IPEndPoint(IPAddress.Parse(ptpMulticastAddrs[Domain]), 319));
+                        var delay_req = PTPGenerator.DelayReq(Domain, ClockId, req_seq++, 0);
+
+                        ptpClientEvent.Send(delay_req, new IPEndPoint(IPAddress.Parse(ptpMulticastAddrs[Domain]), 319));
                         // 记录delay_req报文发送的时间。
                         t3 = getCorrentedTime();
                     }
@@ -202,11 +194,8 @@ namespace Eyu.Audio.PTP
                 {
                     var remote = new IPEndPoint(IPAddress.Any, 0);
                     var buffer = ptpClientEvent.Receive(ref remote);
-                    var recv_ts = getCorrentedTime();
                     if (buffer.Length < 31) continue;
-                    var message = new PTPMessage(buffer);
-                    var source = BitConverter.ToString(message.SourcePortIdentity).ToLower() + ":0";
-                    var sourceAlt = BitConverter.ToString(message.SourcePortIdentity).Replace('-', ':').ToLower();
+                    var message = new PTPMessage(buffer, getCorrentedTime());
                     // 检查版本和广播域
                     if (message.Version != 2 || message.Domain != Domain)
                         continue;
@@ -214,29 +203,29 @@ namespace Eyu.Audio.PTP
                     if (message.MessageId != MessageType.SYNC)
                         continue;
                     // 是不是新的master时钟
-                    if (source != ptpMaster)
+                    if (message.SourcePortIdentityString != ptpMaster)
                     {
                         // 新时钟
-                        ptpMaster = source;
+                        ptpMaster = message.SourcePortIdentityString;
                         // 从新同步
                         sync = false;
                     }
-
                     //save sequence number
                     sync_seq = message.SequencId;
-                    var timestamp = getCorrentedTime().GetTotalNanoseconds();
                     //check if master is two step or not
+                    if (message.ReceiveTime is null)
+                        continue;
                     if (message.PTP_TWO_STEP)
                     {
                         //two step, 记下 sync 报文的精确到达时间 t2; 等待 follow_up 报文收到时处理 t1
-                        t2 = recv_ts;
+                        t2 = message.ReceiveTime;
                     }
-                    else if (timestamp - lastSync > syncInterval)
+                    else if (message.ReceiveTime.GetTotalNanoseconds() - lastSync > syncInterval)
                     {
                         // one step.
-                        t2 = recv_ts;
+                        t2 = message.ReceiveTime;
                         t1 = message.Timestamp;
-                        var delay_req = ptp_delay_req();
+                        var delay_req = PTPGenerator.DelayReq(Domain, ClockId, req_seq++, 0);
                         await ptpClientEvent.SendAsync(delay_req, new IPEndPoint(IPAddress.Parse(ptpMulticastAddrs[Domain]), 319));
 
                         //ptpClientEvent.Receive(ref remote);

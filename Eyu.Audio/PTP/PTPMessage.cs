@@ -6,9 +6,12 @@ namespace Eyu.Audio.PTP;
 public class PTPMessage
 {
     public byte[] RawData { get; private set; }
-    public PTPMessage(byte[] message)
+    public PTPTimestamp? ReceiveTime { get; }
+
+    public PTPMessage(byte[] message, PTPTimestamp? reciveTime = null)
     {
         RawData = message;
+        ReceiveTime = reciveTime;
         TransportSpecific = message[0] & 0xF0 >> 4;
         MessageId = message[0] & 0x0F;
         Version = message[1] & 0x0F;
@@ -18,13 +21,17 @@ public class PTPMessage
         //var bytes = message[8..16];
         CorrectionField = message[8..16];// offset 8; 8 bytes
         SourcePortIdentity = message[20..30]; //offset 20; 10 bytes
-        SequencId = message.ReadInt16BE(30);
+        SequencId = message.ReadUInt16BE(30);
         Control = message[32];
         LogMeanMessageInterval = message[33];
         if (MessageId >= MessageType.SYNC && MessageId <= MessageType.PATH_DELAY_FOLLOW_UP)
         {
             var timestamp = ReadPtpTimestamp(message);
             Timestamp = new PTPTimestamp(timestamp[0], timestamp[1]);
+        }
+        if (MessageId == MessageType.DELAY_RESP)
+        {
+
         }
     }
     /// <summary>
@@ -54,7 +61,6 @@ public class PTPMessage
             timestamp[0] += timestamp[1] / 1_000_000_000;
             timestamp[1] %= 1_000_000_000;
         }
-
         return timestamp;
     }
     /// <summary>
@@ -134,11 +140,11 @@ public class PTPMessage
     /// offset 20, 10 bytes
     /// </summary>
     public byte[] SourcePortIdentity { get; set; }
-
+    public string SourcePortIdentityString => BitConverter.ToString(SourcePortIdentity).Replace("-", ":");
     /// <summary>
     /// 序列号 ID，表示消息的序列号，以及关联消息的对应关系
     /// </summary>
-    public int SequencId { get; set; }
+    public ushort SequencId { get; set; }
 
     /// <summary>
     /// 控制域（IEEE 1588v1），由消息类型决定，定义：

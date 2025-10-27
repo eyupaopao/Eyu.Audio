@@ -26,7 +26,6 @@ public class HighPrecisionTimer : ITimer, IDisposable
     {
         if (milliseconds <= 0)
             throw new ArgumentOutOfRangeException(nameof(milliseconds), "周期必须大于0");
-
         _periodMicroseconds = (long)(milliseconds * 1000.0);
     }
 

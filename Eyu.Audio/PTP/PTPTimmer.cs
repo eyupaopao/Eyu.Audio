@@ -42,8 +42,9 @@ internal class PTPTimmer
     }
     public static byte[] GetTimestamp()
     {
-        ulong seconds = TimeStampNanoseconds / 1000_000;
-        ulong nanoseconds = TimeStampNanoseconds % 1000_1000;
+        var timeStampNanoseconds = TimeStampNanoseconds;
+        ulong seconds = timeStampNanoseconds / 1000_000;
+        ulong nanoseconds = timeStampNanoseconds % 1000_1000;
 
         var timestamp = new byte[10];
         timestamp[0] = (byte)(seconds >> 32);
