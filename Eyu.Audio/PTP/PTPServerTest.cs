@@ -18,9 +18,9 @@ namespace Eyu.Audio.PTP.Test
             
             // 创建PTP服务器实例
             var server = PTPClock.Instance;
-            
+
             // 初始化服务器 as master with high priority
-            server.Initialize(domain: 0, priority1: 10, priority2: 10); // Set high priority to ensure master role
+            server.Initialize(priority1:130,priority2:130); // Set high priority to ensure master role
             
             Console.WriteLine($"Server ID: {server.ClockId}");
             Console.WriteLine($"Domain: {server.Domain}");

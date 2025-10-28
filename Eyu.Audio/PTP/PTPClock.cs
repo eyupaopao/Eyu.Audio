@@ -13,7 +13,7 @@ namespace Eyu.Audio.PTP
     public class PTPClock
     {
         // PTP v2 组播地址
-        static string[] ptpMulticastAddrs = new string[] { "224.0.1.129", "224.0.1.130", "224.0.1.131", "224.0.1.132" };
+        static string[] ptpMulticastAddrs = ["224.0.1.129", "224.0.1.130", "224.0.1.131", "224.0.1.132"];
 
         UdpClient ptpClockEvent;
         UdpClient ptpClockGeneral;
@@ -34,8 +34,6 @@ namespace Eyu.Audio.PTP
         public ushort ClockVariance { get; set; } = 25536; // 时钟方差
         public byte TimeSource { get; set; } = 0xA0; // 时间源
 
-        // 最小同步间隔 ms 
-        long syncInterval;
         // 最近一次同步时间(ms)
         long lastSync = 0;
         public bool IsMaster => isMaster;
@@ -47,7 +45,9 @@ namespace Eyu.Audio.PTP
         bool isRunning = false;
         bool isMaster = true; // 默认作为主时钟
         int announceLogInterval = 1; // announce消息间隔指数 时间间隔为2的指数次方秒
+        double announceIntervalMs => Math.Pow(2, announceLogInterval) * 1000;
         int syncLogInterval = -2; // sync消息间隔指数 时间间隔为2的指数次方秒
+        double syncIntervalMs => Math.Pow(2, syncLogInterval) * 1000;
         // sync 报文 id
         ushort sync_seq = 0;
         // delay_req 报文 id
@@ -157,7 +157,7 @@ namespace Eyu.Audio.PTP
                         SendSyncAndFollowUp();
                     }
 
-                    await Task.Delay((int)Math.Pow(2, syncLogInterval), cts.Token);
+                    await Task.Delay((int)syncIntervalMs, cts.Token);
                 }
                 catch (OperationCanceledException)
                 {
@@ -196,17 +196,132 @@ namespace Eyu.Audio.PTP
             }
         }
 
-        /// <summary>
-        /// 处理Delay_Req消息（带接收时间戳）
-        /// </summary>
-        private void HandleDelayReqMessage(PTPMessage message, IPEndPoint remoteEndpoint, ulong receiveTimestamp)
-        {
-
-
-        }
         #endregion
 
         #region slaver
+
+        /// <summary>
+        /// 处理Sync消息 - 从时钟的主要同步逻辑
+        /// </summary>
+        private async Task HandleSync(PTPMessage message)
+        {
+            // Only process sync if we're in slave mode
+            if (isMaster) return;
+
+            // 获取发送Sync消息的时钟ID
+            var sourceClockId = BitConverter.ToString(message.SourcePortIdentity).Replace("-", "").ToLower();
+
+            // 检查是否为新的主时钟（在已知时钟列表中查找）
+            ClockIdentity sourceClockIdentity = null;
+            lock (clockLock)
+            {
+                if (knownClocks.ContainsKey(sourceClockId))
+                {
+                    sourceClockIdentity = knownClocks[sourceClockId];
+                    sourceClockIdentity.LastReceived = DateTime.UtcNow; // 更新最后接收时间
+                }
+            }
+
+            // 如果源时钟不在已知时钟列表中，直接返回（不处理未知时钟的Sync消息）
+            if (sourceClockIdentity == null)
+            {
+                return;
+            }
+
+            // 比较新主时钟和当前最佳主时钟（使用BMC算法比较逻辑）
+            bool isNewMasterBetter = false;
+            if (bestMasterClock != null)
+            {
+                // 使用BMC算法比较新主时钟和当前主时钟
+                var comparison = CompareClocks(sourceClockIdentity, bestMasterClock);
+                isNewMasterBetter = comparison < 0; // 如果sourceClock更优，则comparison < 0
+            }
+            else
+            {
+                // 如果没有当前主时钟，将此源时钟视为更优
+                isNewMasterBetter = true;
+            }
+
+            // 根据比较结果决定是否切换主时钟
+            if (isNewMasterBetter)
+            {
+                // 新主时钟更优，从时钟应切换到"Listening"状态，准备同步到新主时钟
+                // 在实际实现中，这里可以设置一个中间状态，但在简化实现中，我们直接更新bestMasterClock
+                lock (clockLock)
+                {
+                    bestMasterClock = sourceClockIdentity;
+                }
+
+                // 重置同步参数，准备与新主时钟同步
+                ResetSyncParameters();
+
+                // 更新sync序列号
+                sync_seq = message.SequencId;
+                if (message.ReceiveTime is null)
+                    return;
+                
+                // Check if master is two step or not
+                if (message.PTP_TWO_STEP)
+                {
+                    // Two step: record sync arrival time t2; wait for follow-up to get t1
+                    t2 = message.ReceiveTime;
+                }
+                else if (message.ReceiveTime.GetTotalNanoseconds() - lastSync > syncIntervalMs)
+                {
+                    // One step: record t1 and t2, then send delay request
+                    t2 = message.ReceiveTime;
+                    t1 = message.Timestamp;
+                    var delay_req = PTPGenerator.DelayReq(Domain, ClockId, req_seq++, 0);
+                    await ptpClockEvent.SendAsync(delay_req, new IPEndPoint(IPAddress.Parse(ptpMulticastAddrs[Domain]), 319));
+                    t3 = getCorrectedTime();
+                    lastSync = message.ReceiveTime.GetTotalNanoseconds() / 1000_00;
+                }
+            }
+            else
+            {
+                // 新主时钟不优于当前主时钟，丢弃该Sync包，不进行任何状态切换
+                // 保持与原主时钟的同步
+                return;
+            }
+        }
+
+        /// <summary>
+        /// 重置同步参数
+        /// </summary>
+        private void ResetSyncParameters()
+        {
+            // 重置时间戳
+            t1 = t2 = t3 = t4 = null;
+            // 重置序列号相关参数
+            // sync_seq 和 req_seq 保持不变，因为它们会在处理消息时更新
+        }
+
+        /// <summary>
+        /// 处理Follow-Up消息 - 从时钟获取Sync消息的精确发送时间
+        /// </summary>
+        private void HandleFollowUpMessage(PTPMessage message)
+        {
+            // Only slave processes Follow-Up messages
+            if (isMaster) return;
+
+            // Ensure Follow-Up message matches the most recent Sync message (by sequence number)
+            if (message.SequencId == sync_seq)
+            {
+                // Get the precise send timestamp of the Sync message
+                t1 = message.Timestamp;
+
+                // Check if it's time to send a delay request to calculate network delay
+                var currentTime = getCorrectedTime();
+                if (currentTime.GetTotalNanoseconds() - lastSync > syncIntervalMs)
+                {
+                    // Send Delay_Req message to calculate network delay
+                    var delay_req = PTPGenerator.DelayReq(Domain, ClockId, req_seq++, 0);
+                    ptpClockEvent.Send(delay_req, new IPEndPoint(IPAddress.Parse(ptpMulticastAddrs[Domain]), 319));
+                    t3 = getCorrectedTime();
+                    lastSync = currentTime.GetTotalNanoseconds() / 1000_000;
+                }
+            }
+        }
 
         #endregion
 
@@ -233,6 +348,7 @@ namespace Eyu.Audio.PTP
                 if (knownClocks.Count == 0)
                 {
                     // 没有其他时钟，自己作为主时钟
+                    bool wasMaster = isMaster;
                     isMaster = true;
                     bestMasterClock = new ClockIdentity
                     {
@@ -246,6 +362,12 @@ namespace Eyu.Audio.PTP
                         TimeSource = TimeSource,
                         LastReceived = DateTime.UtcNow
                     };
+                    
+                    // 如果状态发生变化，执行相应操作
+                    if (!wasMaster)
+                    {
+                        OnMasterStateChanged(true);
+                    }
                     return;
                 }
 
@@ -275,11 +397,18 @@ namespace Eyu.Audio.PTP
 
                     var comparison = CompareClocks(currentBest, myClock);
 
+                    bool wasMaster = isMaster;
                     if (comparison < 0)
                     {
                         // 其他时钟更优，切换到从模式
                         isMaster = false;
                         bestMasterClock = currentBest;
+                        
+                        // 如果从主时钟变为从时钟，需要执行相应操作
+                        if (wasMaster)
+                        {
+                            OnMasterStateChanged(false);
+                        }
                     }
                     else if (comparison > 0)
                     {
@@ -287,9 +416,38 @@ namespace Eyu.Audio.PTP
                         isMaster = true;
                         bestMasterClock = myClock;
                         Offset = new PTPTimestamp(0); // 重置偏移量
+                        
+                        // 如果从未主时钟变为主时钟，需要执行相应操作
+                        if (!wasMaster)
+                        {
+                            OnMasterStateChanged(true);
+                        }
                     }
                     // 如果相等，保持当前状态
                 }
+            }
+        }
+
+        /// <summary>
+        /// 当主从状态发生变化时调用
+        /// </summary>
+        /// <param name="isNowMaster">是否现在是主时钟</param>
+        private void OnMasterStateChanged(bool isNowMaster)
+        {
+            if (isNowMaster)
+            {
+                // 切换到主时钟模式
+                // 重置同步参数
+                Offset = new PTPTimestamp(0);
+                Delay = new PTPTimestamp(0);
+                // 重置时间戳
+                t1 = t2 = t3 = t4 = null;
+            }
+            else
+            {
+                // 切换到从时钟模式
+                // 重置时间戳
+                t1 = t2 = t3 = t4 = null;
             }
         }
 
@@ -342,11 +500,11 @@ namespace Eyu.Audio.PTP
                     if (isMaster)
                     {
                         // 发送Announce消息
-                        var announceMsg = PTPGenerator.Announce(Domain, ClockId, announceLogInterval, GetPtpTimestamp(), Priority1, ClockClass, ClockAccuracy, ClockVariance, Priority2, TimeSource);
+                        var announceMsg = PTPGenerator.Announce(Domain, ClockId, announceLogInterval, GetPtpTimestamp(), 37, Priority1, ClockClass, ClockAccuracy, ClockVariance, Priority2, TimeSource, 0); // 使用默认UTC偏移值37秒（2015年7月1日之后的闰秒数），StepsRemoved为0
                         ptpClockGeneral.Send(announceMsg, new IPEndPoint(domainAddress, 320));
                     }
 
-                    await Task.Delay((int)Math.Pow(2, announceLogInterval), cts.Token);
+                    await Task.Delay((int)announceIntervalMs, cts.Token);
                 }
                 catch (OperationCanceledException)
                 {
@@ -428,14 +586,7 @@ namespace Eyu.Audio.PTP
                             HandleAnnounceMessage(message, remote);
                             break;
                         case MessageType.FOLLOW_UP:
-                            if (isMaster || sync_seq != message.SequencId || getCorrentedTime().GetTotalNanoseconds() / 1000000 - lastSync < syncInterval) break;
-                            // sync 报文的精确发送时间 t1
-                            t1 = message.Timestamp;
-                            // 发送delay_req 报文
-                            var delay_req = PTPGenerator.DelayReq(Domain, ClockId, req_seq++, 0);
-                            ptpClockEvent.Send(delay_req, new IPEndPoint(IPAddress.Parse(ptpMulticastAddrs[Domain]), 319));
-                            // 记录delay_req报文发送的时间。
-                            t3 = getCorrentedTime();
+                            HandleFollowUpMessage(message);
                             break;
                         case MessageType.DELAY_RESP:
                             if (isMaster || req_seq != message.SequencId) break;
@@ -444,7 +595,7 @@ namespace Eyu.Audio.PTP
                             Delay = (t4 - t3 + t2 - t1) / 2;
                             var offset = ((t2 - t1) - (t4 - t3)) / 2;
                             Offset += offset;
-                            lastSync = getCorrentedTime().GetTotalNanoseconds() / 1000_000;
+                            lastSync = getCorrectedTime().GetTotalNanoseconds() / 1000_000;
                             break;
                     }
                 }
@@ -503,39 +654,10 @@ namespace Eyu.Audio.PTP
                 }
             }
         }
-        PTPTimestamp getCorrentedTime()
+        PTPTimestamp getCorrectedTime()
         {
             return new PTPTimestamp(PTPTimmer.TimeStampNanoseconds) - Offset;
         }
-
-        private async Task HandleSync(PTPMessage message)
-        {
-            // 是不是新的master时钟
-            if (message.SourcePortIdentityString != bestMasterClock.ClockId)
-            {
-                // 新主时钟处理
-            }
-            //save sequence number
-            sync_seq = message.SequencId;
-            if (message.ReceiveTime is null)
-                return;
-            //check if master is two step or not
-            if (message.PTP_TWO_STEP)
-            {
-                //two step, 记下 sync 报文的精确到达时间 t2; 等待 follow_up 报文收到时处理 t1
-                t2 = message.ReceiveTime;
-            }
-            else if (message.ReceiveTime.GetTotalNanoseconds() - lastSync > syncInterval)
-            {
-                // one step, 记下 t1, t2, t3
-                t2 = message.ReceiveTime;
-                t1 = message.Timestamp;
-                var delay_req = PTPGenerator.DelayReq(Domain, ClockId, req_seq++, 0);
-                await ptpClockEvent.SendAsync(delay_req, new IPEndPoint(IPAddress.Parse(ptpMulticastAddrs[Domain]), 319));
-                t3 = getCorrentedTime();
-            }
-        }
-
     }
 
     /// <summary>
@@ -549,7 +671,7 @@ namespace Eyu.Audio.PTP
         public byte ClockClass { get; set; }
         public byte ClockAccuracy { get; set; }
         public ushort ClockVariance { get; set; }
-        public byte StepsRemoved { get; set; }
+        public ushort StepsRemoved { get; set; }
         public byte TimeSource { get; set; }
         public DateTime LastReceived { get; set; }
     }

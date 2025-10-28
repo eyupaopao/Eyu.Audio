@@ -11,7 +11,7 @@ namespace Eyu.Audio.PTP
     public class PTPClient
     {
         // ptp v2 组播地址
-        static string[] ptpMulticastAddrs = new string[] { "224.0.1.129", "224.0.1.130", "224.0.1.131", "224.0.1.132" };
+        static string[] ptpMulticastAddrs = ["224.0.1.129", "224.0.1.130", "224.0.1.131", "224.0.1.132"];
         UdpClient ptpClientEvent;
         UdpClient ptpClientGeneral;
 

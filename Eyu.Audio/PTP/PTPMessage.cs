@@ -192,7 +192,7 @@ public class PTPMessage
     public byte ClockClass { get; set; }
     public byte ClockAccuracy { get; set; }
     public ushort ClockVariance { get; set; }
-    public byte StepsRemoved { get; set; }
+    public ushort StepsRemoved { get; set; }
     public byte TimeSource { get; set; }
 
     /// <summary>
@@ -213,13 +213,22 @@ public class PTPMessage
     {
         if (MessageId == MessageType.ANNOUNCE)
         {
-            Priority1 = message[44];
-            ClockClass = message[45];
-            ClockAccuracy = message[46];
-            ClockVariance = (ushort)(message[47] << 8 | message[48]);
-            Priority2 = message[49];
-            TimeSource = message[51];
-            StepsRemoved = message[52];
+            // 偏移44-45: CurrentUtcOffset (2字节)
+            // 偏移46: Reserved (1字节)
+            // 偏移47: GrandmasterPriority1 (1字节)
+            Priority1 = message[47];
+            // 偏移48: ClockClass (1字节)
+            ClockClass = message[48];
+            // 偏移49: ClockAccuracy (1字节)
+            ClockAccuracy = message[49];
+            // 偏移50-51: ClockVariance (2字节)
+            ClockVariance = (ushort)(message[50] << 8 | message[51]);
+            // 偏移52: GrandmasterPriority2 (1字节)
+            Priority2 = message[52];
+            // 偏移61-62: StepsRemoved (2字节)
+            StepsRemoved = (ushort)((message[61] << 8) | message[62]); // 组合高字节和低字节
+            // 偏移63: TimeSource (1字节)
+            TimeSource = message[63];
         }
     }
 

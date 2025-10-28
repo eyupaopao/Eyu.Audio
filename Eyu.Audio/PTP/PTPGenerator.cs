@@ -3,12 +3,13 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using static System.Net.WebRequestMethods;
 
 namespace Eyu.Audio.PTP;
 
 public static class PTPGenerator
 {
-    public const int version = 2;
+    public const byte version = 2;
     public static byte[] DelayReq(byte domain, byte[] clockId, ushort req_seq, int LogMsgInterval)
     {
         var length = 52;
@@ -144,7 +145,18 @@ public static class PTPGenerator
     /// <summary>
     /// 创建Announce消息
     /// </summary>
-    public static byte[] Announce(byte Domain, byte[] serverIdBytes, int logMessageInterval, byte[] timestamp, byte priority1, byte clockClass, byte ClockAccuracy, int ClockVariance, byte priority2, byte timeSource)
+    public static byte[] Announce(byte Domain,
+                                  byte[] serverIdBytes,
+                                  int logMessageInterval,
+                                  byte[] timestamp,
+                                  int currentUTCOffset,
+                                  byte priority1,
+                                  byte clockClass,
+                                  byte ClockAccuracy,
+                                  int ClockVariance,
+                                  byte priority2,
+                                  byte timeSource,
+                                  ushort stepsRemoved = 0)
     {
         var length = 64; // Announce消息长度
         var buffer = new byte[length];
@@ -152,48 +164,58 @@ public static class PTPGenerator
         announce_seq = announce_seq += 1;
 
         // 消息类型
-        buffer[0] = MessageType.ANNOUNCE & 0x0F; // type
+        buffer[0] = MessageType.ANNOUNCE; // type
         buffer[1] = version;
         // 消息长度
         buffer[2] = (byte)(length >> 8);
         buffer[3] = (byte)(length & 0xff);
         // 域号
         buffer[4] = (byte)Domain;
-        // 5-6 标志位 不需要
-        // 保留字段（CorrectionField）
+        // 6-7 标志位 
+        // 8-15 （CorrectionField）
         Array.Clear(buffer, 8, 8);
+        // 16-19 保留字段
+        Array.Clear(buffer, 16, 4);
         // 源端口标识符 (前8字节是时钟ID，后2字节是端口号)
+        // 20-27 源时钟ID
         Array.Copy(serverIdBytes, 0, buffer, 20, 8);
+        // 端口号
         buffer[28] = 0; // 端口号高字节
         buffer[29] = 0; // 端口号低字节
         // 序列号
         buffer[30] = (byte)(announce_seq >> 8);
         buffer[31] = (byte)(announce_seq & 0xff);
         // 控制域
-        buffer[32] = 0x05; // All others for announce
+        buffer[32] = ControlField.AllOthers; // All others for announce
         // 消息间隔
         buffer[33] = (byte)logMessageInterval;
         // 当前时间戳
+        //34  10  Origin Timestamp    数值为 0 或精度为 ±1 ns 的时间戳
         Array.Copy(timestamp, 0, buffer, 34, 10);
-        // 优先级1
-        buffer[44] = priority1;
+        //44  2   CurrentUtcOffset UTC 与 TAI 时间标尺间的闰秒时间差
+        buffer[44] = (byte)(currentUTCOffset >> 8);
+        buffer[45] = (byte)(currentUTCOffset & 0xff);
+        //46  1   Reserved -
+        buffer[46] = 0;
+        //47  1   GrandmasterPriority1 用户定义的 grandmaster 优先级
+        buffer[47] = priority1;
+        //48  4   GrandmasterClockQuality grandmaster 的时间质量级别- 包含时钟等级(1字节)、时钟精度(1字节)、时钟方差(2字节)
         // 时钟等级
-        buffer[45] = clockClass;
+        buffer[48] = clockClass;
         // 时钟精度
-        buffer[46] = ClockAccuracy;
+        buffer[49] = ClockAccuracy;
         // 时钟方差
-        buffer[47] = (byte)(ClockVariance >> 8);
-        buffer[48] = (byte)(ClockVariance & 0xFF);
-        // 优先级2
-        buffer[49] = priority2;
-        // 保留字节
-        buffer[50] = 0;
-        buffer[51] = 0;
-        // Steps Removed
-        buffer[52] = 0; // 作为主时钟，步数为0
-        buffer[53] = 0;
-        // 时间源
-        buffer[54] = timeSource;
+        buffer[50] = (byte)(ClockVariance >> 8);
+        buffer[51] = (byte)(ClockVariance & 0xFF);
+        //52  1   GrandmasterPriority2
+        buffer[52] = priority2;
+        //53  8   GrandmasterIdentity grandmaster 的时钟设备 ID
+        Array.Copy(serverIdBytes, 0, buffer, 53, 8);
+        //61 2   StepRemoved grandmaster 与 Slave 设备间的时钟路径跳数
+        buffer[61] = (byte)(stepsRemoved >> 8); // 高字节
+        buffer[62] = (byte)(stepsRemoved & 0xFF); // 低字节
+        //63 1   TimeSource 时间源头类型：GPS - GPS 卫星传送时钟；PTP - PTP 时钟；NTF - NTP 时钟
+        buffer[63] = timeSource;
         return buffer;
     }
 
@@ -240,6 +262,10 @@ ControlField	    1byte	     32          控制域，由消息类型决定：
                                             0x06-0xFF：reserved
 LogMsgInterval 	    1byte	     33           录入消息周期，PTP消息的发送时间间隔，由消息类型决定。
 PTP Specified Message Field	n byte	34        PTP消息体和消息扩展字节。
+
+
+0	34	PTP Header	PTP 报文头
+
      */
 
     /// <summary>
