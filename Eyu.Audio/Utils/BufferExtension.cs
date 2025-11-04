@@ -120,6 +120,17 @@ public static class BufferExtension
 
     #endregion
     #region write
+    public static void WriteInt16BE(this byte[] buffer, uint value, int offset)
+    {
+        buffer[offset] = (byte)(value >> 8);
+        buffer[offset + 1] = (byte)(value & 0xFF);
+    }
+    public static void WriteInt16LE(this byte[] buffer, uint value, int offset)
+    {
+        buffer[offset] = (byte)(value & 0xFF);
+        buffer[offset + 1] = (byte)(value >> 8);
+    }
+
     #region be
 
     /// <summary>
