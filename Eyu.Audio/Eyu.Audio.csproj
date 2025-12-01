@@ -28,6 +28,12 @@
 
 
 	<ItemGroup>
+	  <Content Update="C:\Users\chen7\.nuget\packages\naudio.lame.crossplatform\2.2.1\contentFiles\any\net8.0\libmp3lame.32.dll">
+	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	  </Content>
+	  <Content Update="C:\Users\chen7\.nuget\packages\naudio.lame.crossplatform\2.2.1\contentFiles\any\net8.0\libmp3lame.64.dll">
+	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	  </Content>
 	  <Content Update="C:\Users\User\.nuget\packages\naudio.lame.crossplatform\2.2.1\contentFiles\any\net8.0\libmp3lame.32.dll">
 	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 	  </Content>

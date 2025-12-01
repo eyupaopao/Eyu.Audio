@@ -13,7 +13,11 @@ public static class Mp3FrameCreator
     static ConstructorInfo? mp3FrameConstructor = typeof(Mp3Frame).GetConstructor(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
   null, Type.EmptyTypes, null);
 
-
+    /// <summary>
+    /// 将一帧mp3数据转换为Mp3Frame对象
+    /// </summary>
+    /// <param name="buffer"></param>
+    /// <returns></returns>
     public static Mp3Frame? CreateMp3Frame(byte[] buffer)
     {
         if (mp3FrameConstructor == null) return null;
