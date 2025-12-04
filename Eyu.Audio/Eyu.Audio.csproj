@@ -26,23 +26,6 @@
 		<PackageReference Include="Silk.NET.SDL" Version="2.22.0" />
 	</ItemGroup>
 
-
-	<ItemGroup>
-	  <Content Update="C:\Users\chen7\.nuget\packages\naudio.lame.crossplatform\2.2.1\contentFiles\any\net8.0\libmp3lame.32.dll">
-	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-	  </Content>
-	  <Content Update="C:\Users\chen7\.nuget\packages\naudio.lame.crossplatform\2.2.1\contentFiles\any\net8.0\libmp3lame.64.dll">
-	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-	  </Content>
-	  <Content Update="C:\Users\User\.nuget\packages\naudio.lame.crossplatform\2.2.1\contentFiles\any\net8.0\libmp3lame.32.dll">
-	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-	  </Content>
-	  <Content Update="C:\Users\User\.nuget\packages\naudio.lame.crossplatform\2.2.1\contentFiles\any\net8.0\libmp3lame.64.dll">
-	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-	  </Content>
-	</ItemGroup>
-
-
 	<ItemGroup>
 	  <None Update="LICENSE.txt">
 	    <Pack>True</Pack>
@@ -52,7 +35,13 @@
 	    <Pack>True</Pack>
 	    <PackagePath>\</PackagePath>
 	  </None>
+	  <None Update="runtimes\win-x64\native\libmp3lame.64.dll">
+	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	  </None>
+	  <!--<None Update="runtimes\win-x86\native\libmp3lame.32.dll">
+	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	  </None>-->
 	</ItemGroup>
 
-	
+
 </Project>
