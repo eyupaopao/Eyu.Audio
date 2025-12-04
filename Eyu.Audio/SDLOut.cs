@@ -41,7 +41,7 @@ public class SDLOut : IWavePlayer
         {
             CurrentDevice = DeviceEnumerator.Instance.RenderDevice.FirstOrDefault();
         }
-        else if (DeviceEnumerator.Instance.RenderDevice.Any(e => e.Name == CurrentDevice.Name))
+        else if (DeviceEnumerator.Instance.RenderDevice.Any(e => e.Device == CurrentDevice.Device))
         {
             return;
         }
@@ -116,7 +116,7 @@ public class SDLOut : IWavePlayer
             Callback = new(AudioCallback),
         };
         AudioSpec suportSpec;
-        _device = SdlApi.Api.OpenAudioDevice(CurrentDevice == null ? null : CurrentDevice.Name, 0, &audioSpec, &suportSpec, (int)Sdl.AudioAllowAnyChange);
+        _device = SdlApi.Api.OpenAudioDevice(CurrentDevice?.Device, 0, &audioSpec, &suportSpec, (int)Sdl.AudioAllowAnyChange);
 
         if (_device == 0)
         {

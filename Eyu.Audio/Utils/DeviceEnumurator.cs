@@ -93,18 +93,20 @@ public class DeviceEnumerator : IMMNotificationClient
         {
             var device = new AudioDevice {
                 Id = item.ID,
-                Name = item.FriendlyName,
-                IsCapture = false
+                Device = item.FriendlyName,
+                IsCapture = false,
+                Name = item.FriendlyName
             };
             RenderDevice.Add(device);
         }
         foreach (var item in enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active))
         {
-            var device = new AudioDevice {
-
+            var device = new AudioDevice 
+            {
                 Id = item.ID,
-                Name = item.FriendlyName,
-                IsCapture = true
+                Device = item.FriendlyName,
+                IsCapture = true,
+                Name = item.FriendlyName
             };
             CaptureDevice.Add(device);
         }
@@ -144,8 +146,9 @@ public class DeviceEnumerator : IMMNotificationClient
             var renderDevice = new AudioDevice {
 
                 Id = device.ID,
-                Name = device.FriendlyName,
-                IsCapture = false
+                Device = device.FriendlyName,
+                IsCapture = false,
+                Name = device.FriendlyName
             };
             RenderDevice.Add(renderDevice);
             RenderDeviceChangedAction?.Invoke();
@@ -155,8 +158,9 @@ public class DeviceEnumerator : IMMNotificationClient
             var captureDevice = new AudioDevice {
 
                 Id = device.ID,
-                Name = device.FriendlyName,
-                IsCapture = true
+                Device = device.FriendlyName,
+                IsCapture = true,
+                Name = device.FriendlyName
             };
             CaptureDevice.Add(captureDevice);
             CaptureDeviceChangedAction?.Invoke();
@@ -247,11 +251,8 @@ public class DeviceEnumerator : IMMNotificationClient
                 throw;
             }
         }
-        var device = CaptureDevice.FirstOrDefault(a => a.Name != null && a.Name.Contains("Echo-Cancel"));
-        if (device == null)
-        {
-            throw new Exception("Not found echo cancel device");
-        }
+        var device = CaptureDevice.FirstOrDefault(a => a.Device != null && a.Device.Contains("Echo-Cancel")) 
+            ?? throw new Exception("Not found echo cancel device");
         return new SDLCapture();
     }
 
@@ -280,6 +281,10 @@ public class AudioDevice
         get; set;
     }
     public string? Name
+    {
+        get; set;
+    }
+    public string? Device
     {
         get; set;
     }

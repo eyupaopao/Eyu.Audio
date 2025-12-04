@@ -38,7 +38,7 @@ public unsafe class SDLCapture : IWaveIn
         {
             currentDevice = DeviceEnumerator.Instance.CaptureDevice.FirstOrDefault();
         }
-        else if (DeviceEnumerator.Instance.CaptureDevice.Any(e => e.Name == currentDevice.Name))
+        else if (DeviceEnumerator.Instance.CaptureDevice.Any(e => e.Device == currentDevice.Device))
         {
             return;
         }
@@ -92,7 +92,7 @@ public unsafe class SDLCapture : IWaveIn
         };
         var audioSpec1 = new AudioSpec();
 
-        _device = SdlApi.Api.OpenAudioDevice(currentDevice == null ? null : currentDevice.Name, 1, &audioSpec, &audioSpec1, (int)Sdl.AudioAllowAnyChange);
+        _device = SdlApi.Api.OpenAudioDevice(currentDevice?.Device, 1, &audioSpec, &audioSpec1, (int)Sdl.AudioAllowAnyChange);
         sourceSpec = audioSpec1;
 
         if (_device == 0)
