@@ -17,7 +17,7 @@ public static class AudioEffect
     /// <returns></returns>
     public static byte[] LeftPhaseShift(this byte[] buffer, int len, byte[] patch = null)
     {
-        if (len % 4 != 0 || buffer.Length < len) throw new ArgumentException("音频长度不正确");
+        if (len % 4 != 0 || buffer.Length < len) throw new ArgumentException("error buffer length");
         var newPatch = new byte[2] { buffer[len - 4], buffer[len - 3] };
 
         for (int i = len - 8; i >= 0; i -= 4)
@@ -34,7 +34,7 @@ public static class AudioEffect
     }
     public static byte[] RightPhasePosition(this byte[] buffer, int len, byte[] patch = null)
     {
-        if (len % 4 != 0 || buffer.Length < len) throw new ArgumentException("音频长度不正确");
+        if (len % 4 != 0 || buffer.Length < len) throw new ArgumentException("error buffer length");
         var newPatch = new byte[2] { buffer[len - 2], buffer[len - 1] };
 
         for (int i = len - 8; i >= 0; i -= 4)

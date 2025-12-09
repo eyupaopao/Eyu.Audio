@@ -131,7 +131,7 @@ public class Aes67Channel : IDisposable
                 _outputProvider = new SampleToWaveProvider(sampleProvider);
                 break;
             default:
-                throw new ArgumentException($"不支持的编码格式：{DefaultBitsPerSample}");
+                throw new ArgumentException($"not support encoding：{DefaultBitsPerSample}");
         }
         bytesPerPacket = _samplesPerPacket * waveFormat.Channels * (waveFormat.BitsPerSample / 8);
     }
@@ -143,19 +143,19 @@ public class Aes67Channel : IDisposable
     {
         if (!Array.Exists(SupportedSampleRates, rate => rate == sdp.SampleRate))
         {
-            throw new ArgumentException($"AES67不支持的采样率: {sdp.SampleRate}. 支持的采样率: {string.Join(", ", SupportedSampleRates)}");
+            throw new ArgumentException($"AES67 is not support sample rate: {sdp.SampleRate}. please use: {string.Join(", ", SupportedSampleRates)}");
         }
 
         // AES67要求支持的编码: L16, L24
         if (sdp.AudioEncoding != "L16" && sdp.AudioEncoding != "L24")
         {
-            throw new ArgumentException($"AES67不支持的编码格式: {sdp.AudioEncoding}. 仅支持L16和L24");
+            throw new ArgumentException($"AES67 is not support encoding: {sdp.AudioEncoding}. please use L16 or L24");
         }
 
         // 验证ptime (AES67通常使用0.125ms到100ms)
         if (sdp.PTimems <= 0 || sdp.PTimems > 100)
         {
-            throw new ArgumentException($"ptime值超出AES67推荐范围 (0.125-100ms): {sdp.PTimems}");
+            throw new ArgumentException($"ptime out of range (0.125-100ms): {sdp.PTimems}");
         }
     }
     public void Write(byte[] bytes, int offset, int count)
