@@ -11,6 +11,7 @@
 		<Authors>eyupaopao</Authors>
 		<Company>eyupaopao</Company>
 		<PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
+		<PackageProjectUrl>https://github.com/eyupaopao/Eyu.Audio</PackageProjectUrl>
 	</PropertyGroup>
 
 
