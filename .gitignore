@@ -363,3 +363,4 @@ MigrationBackup/
 FodyWeavers.xsd
 /Sample/Properties/launchSettings.json
 **/test.*
+*.wav
