@@ -1,5 +1,7 @@
 ﻿using Eyu.Audio.Alsa;
+using Eyu.Audio.Provider;
 using NAudio.Wave;
+using NAudio.Wave.SampleProviders;
 using System;
 using System.IO;
 using System.Threading;
@@ -8,14 +10,28 @@ namespace Eyu.Audio.Recorder;
 
 public class AlsaCapture : IWaveIn
 {
-    public AlsaCapture(string? deviceName = null)
+    public AlsaCapture(Utils.AudioDevice? device = null)
     {
+        if (device?.IsCapture == false)
+        {
+            throw new ArgumentException("Device is not a capture device");
+        }
+        if (device == null)
+        {
+            // Use default device if none specified
+            device = new Utils.AudioDevice { Device = "default", IsCapture = true };
+        }
+        this.audioDevice = device;
         WaveFormat = new WaveFormat(8000, 16, 2);
-        this.deviceName = deviceName;
     }
     private ISoundDevice? alsaDevice;
     private FileStream stream;
-    private readonly string deviceName;
+    private Utils.AudioDevice? audioDevice;
+    private WaveFormat sourceFormat;
+    private float dataLenRatio;
+    private BufferedWaveProvider bufferedWaveProvider;
+    private IWaveProvider waveProvider;
+    private byte[] sourceBuffer;
 
     public WaveFormat WaveFormat
     {
@@ -30,15 +46,37 @@ public class AlsaCapture : IWaveIn
     {
         try
         {
-            alsaDevice = AlsaDeviceBuilder.Create(new SoundDeviceSettings() {
+            // Get the actual device settings to determine the source format
+            var settings = new SoundDeviceSettings() {
                 RecordingBitsPerSample = (ushort)WaveFormat.BitsPerSample,
                 RecordingChannels = (ushort)WaveFormat.Channels,
                 RecordingSampleRate = (ushort)WaveFormat.SampleRate,
-                RecordingDeviceName = deviceName == null ? "default" : deviceName,
-            });
+                RecordingDeviceName = audioDevice?.Device ?? "default",
+            };
+            
+            // Create the device and get the actual source format
+            alsaDevice = AlsaDeviceBuilder.Create(settings);
+            sourceFormat = new WaveFormat((int)settings.RecordingSampleRate, (int)settings.RecordingBitsPerSample, (int)settings.RecordingChannels);
+            
+            // Create wave provider for format conversion
+            CreateWaveProvider(sourceFormat, WaveFormat);
+            
+            // Calculate buffer size based on source format
+            int bufferSize = sourceFormat.AverageBytesPerSecond / 4; // Quarter second buffer
+            sourceBuffer = new byte[bufferSize];
+            
             alsaDevice.Record((buffer) =>
             {
-                DataAvailable?.Invoke(this, new WaveInEventArgs(buffer, buffer.Length));
+                // Add samples to the buffered provider for format conversion
+                bufferedWaveProvider.AddSamples(buffer, 0, buffer.Length);
+                
+                // Read converted samples according to target format
+                int targetLen = (int)(buffer.Length * dataLenRatio);
+                var targetBuffer = new byte[targetLen];
+                var readed = waveProvider.Read(targetBuffer, 0, targetLen);
+                
+                // Raise the DataAvailable event with converted samples
+                DataAvailable?.Invoke(this, new WaveInEventArgs(targetBuffer, readed));
             }, CancellationToken.None);
         }
         catch (Exception ex)
@@ -55,7 +93,7 @@ public class AlsaCapture : IWaveIn
                 RecordingBitsPerSample = (ushort)WaveFormat.BitsPerSample,
                 RecordingChannels = (ushort)WaveFormat.Channels,
                 RecordingSampleRate = (ushort)WaveFormat.SampleRate,
-                RecordingDeviceName = deviceName == null ? "default" : deviceName,
+                RecordingDeviceName = audioDevice?.Device ?? "default",
             });
             stream = File.OpenWrite(fileName);
             alsaDevice.Record(stream, CancellationToken.None);
@@ -80,6 +118,38 @@ public class AlsaCapture : IWaveIn
     public void Dispose()
     {
         StopRecording();
+    }
+
+    void CreateWaveProvider(WaveFormat sourceFormat, WaveFormat targetFormat)
+    {
+        dataLenRatio = (targetFormat.SampleRate * targetFormat.BitsPerSample * targetFormat.Channels * 1.0f) / 
+                      (sourceFormat.SampleRate * sourceFormat.BitsPerSample * sourceFormat.Channels);
+        bufferedWaveProvider = new BufferedWaveProvider(sourceFormat);
+        ISampleProvider channel = new SampleChannel(bufferedWaveProvider);
+        
+        // Sample rate conversion
+        if (sourceFormat.SampleRate != targetFormat.SampleRate)
+        {
+            channel = new SampleWaveFormatConversionProvider(targetFormat, channel);
+        }
+        
+        // Channel conversion: mono to stereo or stereo to mono
+        if (targetFormat.Channels != 1 && sourceFormat.Channels == 1)
+        {
+            channel = new MonoToStereoSampleProvider(channel);
+        }
+        if (targetFormat.Channels == 1 && sourceFormat.Channels != 1)
+        {
+            channel = new StereoToMonoSampleProvider(channel);
+        }
+
+        // Bits per sample conversion
+        if (targetFormat.BitsPerSample == 32)
+            waveProvider = new SampleToWaveProvider(channel);
+        else if (targetFormat.BitsPerSample == 24)
+            waveProvider = new SampleToWaveProvider24(channel);
+        else
+            waveProvider = new SampleToWaveProvider16(channel);
     }
 
 

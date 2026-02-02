@@ -221,7 +221,8 @@ public class DeviceEnumerator : IMMNotificationClient
         {
             if (audioDevice?.IsCapture == false)
                 throw new Exception("Not support os platform");
-            return new SDLCapture(audioDevice);
+            //return new SDLCapture(audioDevice);
+            return new AlsaCapture(audioDevice);
         }
         if (audioDevice == null)
             return new WasapiCapture();
