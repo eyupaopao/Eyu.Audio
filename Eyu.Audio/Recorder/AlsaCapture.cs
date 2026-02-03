@@ -6,11 +6,11 @@ using System;
 using System.IO;
 using System.Threading;
 
-namespace Eyu.Audio.Recorder;
+namespace Eyu.Audio;
 
-public class AlsaCapture : IWaveIn
+public class ALSACapture : IWaveIn
 {
-    public AlsaCapture(Utils.AudioDevice? device = null,int audioBufferMillisecondsLength = 100)
+    public ALSACapture(Utils.AudioDevice? device = null,int audioBufferMillisecondsLength = 100)
     {
         if (device?.IsCapture == false)
         {
@@ -25,16 +25,13 @@ public class AlsaCapture : IWaveIn
         this.audioBufferMillisecondsLength = audioBufferMillisecondsLength;
         WaveFormat = new WaveFormat(8000, 16, 2);
     }
-    private ISoundDevice? alsaDevice;
+    private ALSAApi? alsaDevice;
     private FileStream stream;
     private Utils.AudioDevice? audioDevice;
     private readonly int audioBufferMillisecondsLength;
-    private WaveFormat sourceFormat;
-    private float dataLenRatio;
     private BufferedWaveProvider bufferedWaveProvider;
     private IWaveProvider waveProvider;
-    private byte[] sourceBuffer;
-
+    private CancellationTokenSource cancellationTokenSource;
     public WaveFormat WaveFormat
     {
         get; set;
@@ -57,16 +54,14 @@ public class AlsaCapture : IWaveIn
             };
 
             // Create the device and get the actual source format
-            alsaDevice = AlsaDeviceBuilder.Create(settings);
-            sourceFormat = new WaveFormat((int)settings.RecordingSampleRate, (int)settings.RecordingBitsPerSample, (int)settings.RecordingChannels);
-
+            alsaDevice = new ALSAApi(settings);
+            
             // Create wave provider for format conversion
-            CreateWaveProvider(sourceFormat, WaveFormat);
+            bufferedWaveProvider = new BufferedWaveProvider(WaveFormat);
 
             // Calculate buffer size based on source format
-            int bufferSize = sourceFormat.AverageBytesPerSecond / 4; // Quarter second buffer
-            sourceBuffer = new byte[bufferSize];
-
+            int bufferSize = WaveFormat.AverageBytesPerSecond / 4; // Quarter second buffer
+            cancellationTokenSource = new CancellationTokenSource();
             alsaDevice.Record((buffer) =>
             {
                 // Add samples to the buffered provider for format conversion
@@ -86,7 +81,7 @@ public class AlsaCapture : IWaveIn
                     // Raise the DataAvailable event with converted samples
                     DataAvailable?.Invoke(this, new WaveInEventArgs(targetBuffer, readed));
                 }
-            }, CancellationToken.None);
+            }, cancellationTokenSource.Token);
         }
         catch (Exception ex)
         {
@@ -94,29 +89,9 @@ public class AlsaCapture : IWaveIn
         }
     }
 
-    public void StartRecording(string fileName)
-    {
-        try
-        {
-            alsaDevice = AlsaDeviceBuilder.Create(new SoundDeviceSettings() {
-                RecordingBitsPerSample = (ushort)WaveFormat.BitsPerSample,
-                RecordingChannels = (ushort)WaveFormat.Channels,
-                RecordingSampleRate = (ushort)WaveFormat.SampleRate,
-                RecordingDeviceName = audioDevice?.Device ?? "default",
-            });
-            stream = File.OpenWrite(fileName);
-            alsaDevice.Record(stream, CancellationToken.None);
-        }
-        catch (Exception ex)
-        {
-            stream?.Close();
-            stream?.Dispose();
-            RecordingStopped?.Invoke(this, new StoppedEventArgs(ex));
-        }
-
-    }
     public void StopRecording()
     {
+        cancellationTokenSource.Cancel();
         // Send any remaining data in the buffer before stopping
         if (bufferedWaveProvider != null && bufferedWaveProvider.BufferedBytes > 0)
         {
@@ -129,9 +104,7 @@ public class AlsaCapture : IWaveIn
                 DataAvailable?.Invoke(this, new WaveInEventArgs(remainingBuffer, bytesRead));
             }
         }
-
-        alsaDevice?.Stop();
-        alsaDevice?.Dispose();
+        alsaDevice?.StopRecording();
         stream?.Close();
         stream?.Dispose();
         RecordingStopped?.Invoke(this, new StoppedEventArgs());
@@ -141,49 +114,6 @@ public class AlsaCapture : IWaveIn
     {
         StopRecording();
     }
-
-    void CreateWaveProvider(WaveFormat sourceFormat, WaveFormat targetFormat)
-    {
-        dataLenRatio = (targetFormat.SampleRate * targetFormat.BitsPerSample * targetFormat.Channels * 1.0f) /
-                      (sourceFormat.SampleRate * sourceFormat.BitsPerSample * sourceFormat.Channels);
-
-        // Calculate buffer size based on the desired buffer length in milliseconds
-        int bufferSize = (int)((audioBufferMillisecondsLength / 1000.0) * sourceFormat.AverageBytesPerSecond);
-        // Ensure minimum buffer size to prevent issues
-        bufferSize = Math.Max(bufferSize, sourceFormat.AverageBytesPerSecond / 10); // At least 100ms buffer
-
-        bufferedWaveProvider = new BufferedWaveProvider(sourceFormat)
-        {
-            BufferLength = bufferSize * 4, // Use 4x the required buffer size to prevent overflow
-            DiscardOnBufferOverflow = true // Discard old data if buffer overflows
-        };
-
-        ISampleProvider channel = new SampleChannel(bufferedWaveProvider);
-
-        // Sample rate conversion
-        if (sourceFormat.SampleRate != targetFormat.SampleRate)
-        {
-            channel = new SampleWaveFormatConversionProvider(targetFormat, channel);
-        }
-
-        // Channel conversion: mono to stereo or stereo to mono
-        if (targetFormat.Channels != 1 && sourceFormat.Channels == 1)
-        {
-            channel = new MonoToStereoSampleProvider(channel);
-        }
-        if (targetFormat.Channels == 1 && sourceFormat.Channels != 1)
-        {
-            channel = new StereoToMonoSampleProvider(channel);
-        }
-
-        // Bits per sample conversion
-        if (targetFormat.BitsPerSample == 32)
-            waveProvider = new SampleToWaveProvider(channel);
-        else if (targetFormat.BitsPerSample == 24)
-            waveProvider = new SampleToWaveProvider24(channel);
-        else
-            waveProvider = new SampleToWaveProvider16(channel);
-    }
-
+       
 
 }

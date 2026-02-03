@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace Eyu.Audio.Alsa;
 
-class UnixSoundDevice : ISoundDevice
+class ALSAApi
 {
     static readonly object PlaybackInitializationLock = new();
     static readonly object RecordingInitializationLock = new();
@@ -43,19 +43,19 @@ class UnixSoundDevice : ISoundDevice
     nint _mixelElement;
     bool _wasDisposed;
 
-    public UnixSoundDevice(SoundDeviceSettings settings)
+    public ALSAApi(SoundDeviceSettings settings)
     {
         Settings = settings;
     }
 
-
+    #region play
     public void Play(IWaveProvider waveProvider, CancellationToken cancellationToken)
     {
         Console.WriteLine("start play");
         Task.Run(() =>
         {
             if (_wasDisposed)
-                throw new ObjectDisposedException(nameof(UnixSoundDevice));
+                throw new ObjectDisposedException(nameof(ALSAApi));
 
             var parameter = new nint();
             var dir = 0;
@@ -163,7 +163,7 @@ class UnixSoundDevice : ISoundDevice
     public void Play(string wavPath)
     {
         if (_wasDisposed)
-            throw new ObjectDisposedException(nameof(UnixSoundDevice));
+            throw new ObjectDisposedException(nameof(ALSAApi));
 
         using var fs = File.Open(wavPath, FileMode.Open, FileAccess.Read, FileShare.Read);
         Play(fs, CancellationToken.None);
@@ -172,7 +172,7 @@ class UnixSoundDevice : ISoundDevice
     public void Play(string wavPath, CancellationToken cancellationToken)
     {
         if (_wasDisposed)
-            throw new ObjectDisposedException(nameof(UnixSoundDevice));
+            throw new ObjectDisposedException(nameof(ALSAApi));
 
         using var fs = File.Open(wavPath, FileMode.Open, FileAccess.Read, FileShare.Read);
         Play(fs, cancellationToken);
@@ -181,7 +181,7 @@ class UnixSoundDevice : ISoundDevice
     public void Play(Stream wavStream)
     {
         if (_wasDisposed)
-            throw new ObjectDisposedException(nameof(UnixSoundDevice));
+            throw new ObjectDisposedException(nameof(ALSAApi));
 
         Play(wavStream, CancellationToken.None);
     }
@@ -191,7 +191,7 @@ class UnixSoundDevice : ISoundDevice
         Task.Run(() =>
         {
             if (_wasDisposed)
-                throw new ObjectDisposedException(nameof(UnixSoundDevice));
+                throw new ObjectDisposedException(nameof(ALSAApi));
 
             var parameter = new nint();
             var dir = 0;
@@ -203,94 +203,6 @@ class UnixSoundDevice : ISoundDevice
             ClosePlaybackPcm();
         });
     }
-
-    public void Record(uint second, string savePath)
-    {
-        if (_wasDisposed)
-            throw new ObjectDisposedException(nameof(UnixSoundDevice));
-
-        using var fs = File.Open(savePath, FileMode.Create, FileAccess.Write, FileShare.None);
-        Record(second, fs);
-
-    }
-
-    public void Record(uint second, Stream saveStream)
-    {
-        if (_wasDisposed)
-            throw new ObjectDisposedException(nameof(UnixSoundDevice));
-
-        using var tokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(second));
-        Record(saveStream, tokenSource.Token);
-    }
-
-    public void Record(Stream saveStream, CancellationToken token)
-    {
-        _ = Task.Run(() =>
-        {
-            if (_wasDisposed)
-                throw new ObjectDisposedException(nameof(UnixSoundDevice));
-
-            var parameters = new nint();
-            var dir = 0;
-            var header = WavHeader.Build(Settings.RecordingSampleRate, Settings.RecordingChannels, Settings.RecordingBitsPerSample);
-            header.WriteToStream(saveStream);
-
-            OpenRecordingPcm();
-            PcmInitialize(_recordingPcm, header, ref parameters, ref dir);
-            ReadStream(saveStream, header, ref parameters, ref dir, token);
-            CloseRecordingPcm();
-        });
-    }
-
-    public void Record(Action<byte[]> onDataAvailable, CancellationToken token)
-    {
-        _ = Task.Run(() =>
-        {
-            if (_wasDisposed)
-                throw new ObjectDisposedException(nameof(UnixSoundDevice));
-
-            var parameters = new nint();
-            var dir = 0;
-
-            var header = WavHeader.Build(Settings.RecordingSampleRate, Settings.RecordingChannels, Settings.RecordingBitsPerSample);
-            using (var memoryStream = new MemoryStream())
-            {
-                header.WriteToStream(memoryStream);
-                onDataAvailable?.Invoke(memoryStream.ToArray());
-            }
-
-            OpenRecordingPcm();
-            PcmInitialize(_recordingPcm, header, ref parameters, ref dir);
-            ReadStream(onDataAvailable, header, ref parameters, ref dir, token);
-            CloseRecordingPcm();
-        });
-    }
-
-    public void Loopback(Action<byte[]> onDataAvailable, CancellationToken token)
-    {
-        _ = Task.Run(() =>
-        {
-            if (_wasDisposed)
-                throw new ObjectDisposedException(nameof(UnixSoundDevice));
-
-            var parameters = new nint();
-            var dir = 0;
-
-            var header = WavHeader.Build(Settings.RecordingSampleRate, Settings.RecordingChannels, Settings.RecordingBitsPerSample);
-            using (var memoryStream = new MemoryStream())
-            {
-                header.WriteToStream(memoryStream);
-                onDataAvailable?.Invoke(memoryStream.ToArray());
-            }
-
-            OpenLoopbackPcm();
-            PcmInitialize(_loopbackPcm, header, ref parameters, ref dir);
-            ReadStream(onDataAvailable, header, ref parameters, ref dir, token);
-            CloseLoopbackPcm();
-        });
-    }
-
-
 
     unsafe void WriteStream(Stream wavStream, WavHeader header, ref nint @params, ref int dir, CancellationToken cancellationToken)
     {
@@ -315,6 +227,57 @@ class UnixSoundDevice : ISoundDevice
         }
     }
 
+
+
+    void OpenPlaybackPcm()
+    {
+        if (_playbackPcm != default)
+            return;
+
+        lock (PlaybackInitializationLock)
+            ThrowErrorMessage(InteropAlsa.snd_pcm_open(ref _playbackPcm, Settings.PlaybackDeviceName, snd_pcm_stream_t.SND_PCM_STREAM_PLAYBACK, 0), ExceptionMessages.CanNotOpenPlayback);
+    }
+
+    void ClosePlaybackPcm()
+    {
+        if (_playbackPcm == default)
+            return;
+
+        //ThrowErrorMessage(InteropAlsa.snd_pcm_drain(_playbackPcm), ExceptionMessages.CanNotDropDevice);
+        ThrowErrorMessage(InteropAlsa.snd_pcm_close(_playbackPcm), ExceptionMessages.CanNotCloseDevice);
+
+        _playbackPcm = default;
+    }
+
+
+    #endregion
+
+    #region record   
+    public void Record(Action<byte[]> onDataAvailable, CancellationToken token)
+    {
+        _ = Task.Run(() =>
+        {
+            if (_wasDisposed)
+                throw new ObjectDisposedException(nameof(ALSAApi));
+
+            var parameters = new nint();
+            var dir = 0;
+
+            var header = WavHeader.Build(Settings.RecordingSampleRate, Settings.RecordingChannels, Settings.RecordingBitsPerSample);
+            using (var memoryStream = new MemoryStream())
+            {
+                header.WriteToStream(memoryStream);
+                onDataAvailable?.Invoke(memoryStream.ToArray());
+            }
+
+            OpenRecordingPcm();
+            PcmInitialize(_recordingPcm, header, ref parameters, ref dir);
+            ReadStream(onDataAvailable, header, ref parameters, ref dir, token);
+            CloseRecordingPcm();
+        });
+    }
+
+
     unsafe void ReadStream(Stream saveStream, WavHeader header, ref nint @params, ref int dir, CancellationToken cancellationToken)
     {
         ulong frames;
@@ -336,6 +299,76 @@ class UnixSoundDevice : ISoundDevice
 
         saveStream.Flush();
     }
+
+    void OpenRecordingPcm()
+    {
+        if (_recordingPcm != default)
+            return;
+
+        lock (RecordingInitializationLock)
+            ThrowErrorMessage(InteropAlsa.snd_pcm_open(ref _recordingPcm, Settings.RecordingDeviceName, snd_pcm_stream_t.SND_PCM_STREAM_CAPTURE, 0), ExceptionMessages.CanNotOpenRecording);
+    }
+
+    void CloseRecordingPcm()
+    {
+        if (_recordingPcm == default)
+            return;
+        ThrowErrorMessage(InteropAlsa.snd_pcm_close(_recordingPcm), ExceptionMessages.CanNotCloseDevice);
+        _recordingPcm = default;
+    }
+
+    public void StopRecording()
+    {
+        Dispose();
+    }
+
+    #endregion
+
+    #region loopback
+
+    public void Loopback(Action<byte[]> onDataAvailable, CancellationToken token)
+    {
+        _ = Task.Run(() =>
+        {
+            if (_wasDisposed)
+                throw new ObjectDisposedException(nameof(ALSAApi));
+
+            var parameters = new nint();
+            var dir = 0;
+
+            var header = WavHeader.Build(Settings.RecordingSampleRate, Settings.RecordingChannels, Settings.RecordingBitsPerSample);
+            using (var memoryStream = new MemoryStream())
+            {
+                header.WriteToStream(memoryStream);
+                onDataAvailable?.Invoke(memoryStream.ToArray());
+            }
+
+            OpenLoopbackPcm();
+            PcmInitialize(_loopbackPcm, header, ref parameters, ref dir);
+            ReadStream(onDataAvailable, header, ref parameters, ref dir, token);
+            CloseLoopbackPcm();
+        });
+    }
+
+
+    void CloseLoopbackPcm()
+    {
+        if (_loopbackPcm == default)
+            return;
+        ThrowErrorMessage(InteropAlsa.snd_pcm_close(_loopbackPcm), ExceptionMessages.CanNotCloseDevice);
+        _loopbackPcm = default;
+    }
+
+    private void OpenLoopbackPcm()
+    {
+        if (_loopbackPcm != default)
+            return;
+        lock (RecordingInitializationLock)
+            ThrowErrorMessage(InteropAlsa.snd_pcm_open(ref _loopbackPcm, Settings.RecordingDeviceName, snd_pcm_stream_t.SND_PCM_STREAM_CAPTURE, 0), ExceptionMessages.CanNotOpenRecording);
+    }
+
+
+    #endregion
 
     unsafe void ReadStream(Action<byte[]>? onDataAvailable, WavHeader header, ref nint @params, ref int dir, CancellationToken cancellationToken)
     {
@@ -363,7 +396,8 @@ class UnixSoundDevice : ISoundDevice
         ThrowErrorMessage(InteropAlsa.snd_pcm_hw_params_any(pcm, @params), ExceptionMessages.CanNotFillParameters);
         ThrowErrorMessage(InteropAlsa.snd_pcm_hw_params_set_access(pcm, @params, snd_pcm_access_t.SND_PCM_ACCESS_RW_INTERLEAVED), ExceptionMessages.CanNotSetAccessMode);
 
-        var formatResult = (header.BitsPerSample / 8) switch {
+        var formatResult = (header.BitsPerSample / 8) switch
+        {
             1 => InteropAlsa.snd_pcm_hw_params_set_format(pcm, @params, snd_pcm_format_t.SND_PCM_FORMAT_U8),
             2 => InteropAlsa.snd_pcm_hw_params_set_format(pcm, @params, snd_pcm_format_t.SND_PCM_FORMAT_S16_LE),
             3 => InteropAlsa.snd_pcm_hw_params_set_format(pcm, @params, snd_pcm_format_t.SND_PCM_FORMAT_S24_LE),
@@ -383,6 +417,8 @@ class UnixSoundDevice : ISoundDevice
         ThrowErrorMessage(InteropAlsa.snd_pcm_hw_params(pcm, @params), ExceptionMessages.CanNotSetHwParams);
     }
 
+
+    #region set properties
     void SetPlaybackVolume(long volume)
     {
         OpenMixer();
@@ -454,66 +490,9 @@ class UnixSoundDevice : ISoundDevice
         CloseMixer();
     }
 
-    void OpenPlaybackPcm()
-    {
-        if (_playbackPcm != default)
-            return;
+    #endregion
 
-        lock (PlaybackInitializationLock)
-            ThrowErrorMessage(InteropAlsa.snd_pcm_open(ref _playbackPcm, Settings.PlaybackDeviceName, snd_pcm_stream_t.SND_PCM_STREAM_PLAYBACK, 0), ExceptionMessages.CanNotOpenPlayback);
-    }
 
-    void ClosePlaybackPcm()
-    {
-        if (_playbackPcm == default)
-            return;
-
-        //ThrowErrorMessage(InteropAlsa.snd_pcm_drain(_playbackPcm), ExceptionMessages.CanNotDropDevice);
-        ThrowErrorMessage(InteropAlsa.snd_pcm_close(_playbackPcm), ExceptionMessages.CanNotCloseDevice);
-
-        _playbackPcm = default;
-    }
-
-    void OpenRecordingPcm()
-    {
-        if (_recordingPcm != default)
-            return;
-
-        lock (RecordingInitializationLock)
-            ThrowErrorMessage(InteropAlsa.snd_pcm_open(ref _recordingPcm, Settings.RecordingDeviceName, snd_pcm_stream_t.SND_PCM_STREAM_CAPTURE, 0), ExceptionMessages.CanNotOpenRecording);
-    }
-  
-
-    void CloseRecordingPcm()
-    {
-        if (_recordingPcm == default)
-            return;
-
-        //ThrowErrorMessage(InteropAlsa.snd_pcm_drain(_recordingPcm), ExceptionMessages.CanNotDropDevice);
-        ThrowErrorMessage(InteropAlsa.snd_pcm_close(_recordingPcm), ExceptionMessages.CanNotCloseDevice);
-
-        _recordingPcm = default;
-    }
-
-    void CloseLoopbackPcm()
-    {
-        if (_loopbackPcm == default)
-            return;
-
-        //ThrowErrorMessage(InteropAlsa.snd_pcm_drain(_loopbackPcm), ExceptionMessages.CanNotDropDevice);
-        ThrowErrorMessage(InteropAlsa.snd_pcm_close(_loopbackPcm), ExceptionMessages.CanNotCloseDevice);
-
-        _loopbackPcm = default;
-    }
-
-    private void OpenLoopbackPcm()
-    {
-        if (_loopbackPcm != default)
-            return;
-
-        lock (RecordingInitializationLock)
-            ThrowErrorMessage(InteropAlsa.snd_pcm_open(ref _loopbackPcm, Settings.RecordingDeviceName, snd_pcm_stream_t.SND_PCM_STREAM_CAPTURE, 0), ExceptionMessages.CanNotOpenRecording);
-    }
     void OpenMixer()
     {
         if (_mixer != default)
@@ -545,9 +524,7 @@ class UnixSoundDevice : ISoundDevice
     {
         if (_wasDisposed)
             return;
-
         _wasDisposed = true;
-
         ClosePlaybackPcm();
         CloseRecordingPcm();
         CloseMixer();

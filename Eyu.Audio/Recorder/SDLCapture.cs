@@ -8,7 +8,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
 
-namespace Eyu.Audio.Recorder;
+namespace Eyu.Audio;
 
 public unsafe class SDLCapture : IWaveIn
 {

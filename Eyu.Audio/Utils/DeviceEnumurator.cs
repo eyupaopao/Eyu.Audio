@@ -1,11 +1,9 @@
-﻿using Eyu.Audio.Recorder;
-using NAudio.CoreAudioApi;
+﻿using NAudio.CoreAudioApi;
 using NAudio.CoreAudioApi.Interfaces;
 using NAudio.Wave;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net.Http.Headers;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 
@@ -249,7 +247,7 @@ public class DeviceEnumerator : IMMNotificationClient
             case DriverType.Sdl:
                 return new SDLCapture(audioDevice);
             default:
-                return new AlsaCapture(audioDevice);
+                return new ALSACapture(audioDevice);
         }
     }
     [SupportedOSPlatform("Linux")]
