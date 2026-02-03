@@ -329,8 +329,34 @@ class UnixSoundDevice : ISoundDevice
         {
             while (!_wasDisposed && !cancellationToken.IsCancellationRequested)
             {
-                ThrowErrorMessage(InteropAlsa.snd_pcm_readi(_recordingPcm, (nint)buffer, frames), ExceptionMessages.CanNotReadFromDevice);
-                saveStream.Write(readBuffer);
+                var result = InteropAlsa.snd_pcm_readi(_recordingPcm, (nint)buffer, frames);
+                
+                // Check for cancellation again after the blocking call
+                if (cancellationToken.IsCancellationRequested)
+                    break;
+                    
+                // Handle ALSA errors gracefully, especially when stopping
+                if (result < 0)
+                {
+                    // If we get an error that indicates the device is unavailable during cancellation, exit gracefully
+                    if (cancellationToken.IsCancellationRequested && (result == -5 || result == -32)) // -5 = EIO, -32 = EPIPE
+                    {
+                        break;
+                    }
+                    ThrowErrorMessage(result, ExceptionMessages.CanNotReadFromDevice);
+                }
+                else
+                {
+                    // Only write to stream if we successfully read data
+                    var bytesToWrite = (int)(result * header.BlockAlign);
+                    if (bytesToWrite > 0)
+                    {
+                        // Ensure we only write the actual amount of data received
+                        var actualBuffer = new byte[bytesToWrite];
+                        Array.Copy(readBuffer, actualBuffer, bytesToWrite);
+                        saveStream.Write(actualBuffer, 0, bytesToWrite);
+                    }
+                }
             }
         }
 
@@ -351,8 +377,34 @@ class UnixSoundDevice : ISoundDevice
         {
             while (!_wasDisposed && !cancellationToken.IsCancellationRequested)
             {
-                ThrowErrorMessage(InteropAlsa.snd_pcm_readi(_recordingPcm, (nint)buffer, frames), ExceptionMessages.CanNotReadFromDevice);
-                onDataAvailable?.Invoke(readBuffer);
+                var result = InteropAlsa.snd_pcm_readi(_recordingPcm, (nint)buffer, frames);
+                
+                // Check for cancellation again after the blocking call
+                if (cancellationToken.IsCancellationRequested)
+                    break;
+                    
+                // Handle ALSA errors gracefully, especially when stopping
+                if (result < 0)
+                {
+                    // If we get an error that indicates the device is unavailable during cancellation, exit gracefully
+                    if (cancellationToken.IsCancellationRequested && (result == -5 || result == -32)) // -5 = EIO, -32 = EPIPE
+                    {
+                        break;
+                    }
+                    ThrowErrorMessage(result, ExceptionMessages.CanNotReadFromDevice);
+                }
+                else
+                {
+                    // Only invoke the callback if we successfully read data
+                    var bytesToCopy = (int)(result * header.BlockAlign);
+                    if (bytesToCopy > 0)
+                    {
+                        // Create a copy of only the data that was actually read
+                        var actualData = new byte[bytesToCopy];
+                        Array.Copy(readBuffer, actualData, bytesToCopy);
+                        onDataAvailable?.Invoke(actualData);
+                    }
+                }
             }
         }
     }
@@ -468,8 +520,14 @@ class UnixSoundDevice : ISoundDevice
         if (_playbackPcm == default)
             return;
 
-        //ThrowErrorMessage(InteropAlsa.snd_pcm_drain(_playbackPcm), ExceptionMessages.CanNotDropDevice);
-        ThrowErrorMessage(InteropAlsa.snd_pcm_close(_playbackPcm), ExceptionMessages.CanNotCloseDevice);
+        // Instead of drain which can hang when there's no data flowing, just close the device directly
+        // The snd_pcm_close should handle proper cleanup internally
+        var closeResult = InteropAlsa.snd_pcm_close(_playbackPcm);
+        // Only throw if the error isn't related to an already closed device
+        if (closeResult < 0 && closeResult != -19) // -19 is ENODEV (No such device)
+        {
+            ThrowErrorMessage(closeResult, ExceptionMessages.CanNotCloseDevice);
+        }
 
         _playbackPcm = default;
     }
@@ -489,8 +547,14 @@ class UnixSoundDevice : ISoundDevice
         if (_recordingPcm == default)
             return;
 
-        //ThrowErrorMessage(InteropAlsa.snd_pcm_drain(_recordingPcm), ExceptionMessages.CanNotDropDevice);
-        ThrowErrorMessage(InteropAlsa.snd_pcm_close(_recordingPcm), ExceptionMessages.CanNotCloseDevice);
+        // Instead of drain which can hang when there's no data flowing, just close the device directly
+        // The snd_pcm_close should handle proper cleanup internally
+        var closeResult = InteropAlsa.snd_pcm_close(_recordingPcm);
+        // Only throw if the error isn't related to an already closed device
+        if (closeResult < 0 && closeResult != -19) // -19 is ENODEV (No such device)
+        {
+            ThrowErrorMessage(closeResult, ExceptionMessages.CanNotCloseDevice);
+        }
 
         _recordingPcm = default;
     }
@@ -500,8 +564,14 @@ class UnixSoundDevice : ISoundDevice
         if (_loopbackPcm == default)
             return;
 
-        //ThrowErrorMessage(InteropAlsa.snd_pcm_drain(_loopbackPcm), ExceptionMessages.CanNotDropDevice);
-        ThrowErrorMessage(InteropAlsa.snd_pcm_close(_loopbackPcm), ExceptionMessages.CanNotCloseDevice);
+        // Instead of drain which can hang when there's no data flowing, just close the device directly
+        // The snd_pcm_close should handle proper cleanup internally
+        var closeResult = InteropAlsa.snd_pcm_close(_loopbackPcm);
+        // Only throw if the error isn't related to an already closed device
+        if (closeResult < 0 && closeResult != -19) // -19 is ENODEV (No such device)
+        {
+            ThrowErrorMessage(closeResult, ExceptionMessages.CanNotCloseDevice);
+        }
 
         _loopbackPcm = default;
     }

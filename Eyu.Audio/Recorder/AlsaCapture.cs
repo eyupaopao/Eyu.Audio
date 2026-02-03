@@ -108,11 +108,20 @@ public class AlsaCapture : IWaveIn
     }
     public void StopRecording()
     {
-        alsaDevice?.Stop();
-        alsaDevice?.Dispose();
-        stream?.Close();
-        stream?.Dispose();
-        RecordingStopped?.Invoke(this, new StoppedEventArgs());
+        try
+        {
+            alsaDevice?.Stop();
+            alsaDevice?.Dispose();
+            stream?.Close();
+            stream?.Dispose();
+            RecordingStopped?.Invoke(this, new StoppedEventArgs());
+        }
+        catch (Exception ex)
+        {
+            // Log the exception but don't rethrow to prevent issues during cleanup
+            Console.WriteLine($"Error during StopRecording: {ex.Message}");
+            RecordingStopped?.Invoke(this, new StoppedEventArgs(ex));
+        }
     }
 
     public void Dispose()

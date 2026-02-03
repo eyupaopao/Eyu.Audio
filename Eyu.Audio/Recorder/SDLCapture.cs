@@ -78,13 +78,17 @@ public unsafe class SDLCapture : IWaveIn
 
     public void Dispose()
     {
-        StopRecording();
+        if (_isRecording)
+            StopRecording();
+        DeviceEnumerator.Instance.CaptureDeviceChangedAction -= SdlApi_CaptureDeviceChanged;
     }
     AudioSpec sourceSpec;
     private AudioDevice? currentDevice;
 
     public unsafe void StartRecording()
     {
+        if (_isRecording)
+            StopRecording();
         var audioSpec = new AudioSpec {
             Freq = WaveFormat.SampleRate,
             Format = Sdl.AudioF32,
