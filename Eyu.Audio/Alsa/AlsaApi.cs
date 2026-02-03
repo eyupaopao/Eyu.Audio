@@ -505,11 +505,12 @@ class ALSAApi
         _mixelElement = default;
     }
 
-    public void Dispose()
+    public async Task Dispose()
     {
         if (_wasDisposed)
             return;        
         _wasDisposed = true;
+        await Task.Delay(100);
         ClosePlaybackPcm();
         CloseLoopbackPcm();
         CloseRecordingPcm();
