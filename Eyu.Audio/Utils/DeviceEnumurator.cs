@@ -26,10 +26,10 @@ public class DeviceEnumerator : IMMNotificationClient
     {
         if (Instance == null)
         {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            if ( RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 if(captureType == DriverType.Alsa) captureType = DriverType.Wasapi;
-                if (renderType == DriverType.Alsa) renderType = DriverType.Wasapi;                
+                if(renderType == DriverType.Alsa) renderType = DriverType.Wasapi;                
             }
             Instance = new DeviceEnumerator(captureType, renderType);
         }
