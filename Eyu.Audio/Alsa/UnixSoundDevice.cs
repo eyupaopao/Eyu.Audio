@@ -84,50 +84,56 @@ class UnixSoundDevice : ISoundDevice
         var readBuffer = new byte[(int)bufferSize];
         IntPtr buffer = Marshal.AllocHGlobal((int)bufferSize);
 
-        Console.WriteLine("start play while");
-        while (!_wasDisposed && !cancellationToken.IsCancellationRequested)
+        try
         {
-            if (PlaybackState == PlaybackState.Stopped)
+            Console.WriteLine("start play while");
+            while (!_wasDisposed && !cancellationToken.IsCancellationRequested)
             {
-                Dispose();
-                break;
-            }
-            else if (PlaybackState == PlaybackState.Paused)
-            {
-                Console.WriteLine("start play pause");
-                Thread.Sleep(1);
-                continue;
-            }
-            int read = wavStream.Read(readBuffer, 0, readBuffer.Length);
-            if (read == 0)
-            {
-                Console.WriteLine("start play read 0");
-                Thread.Sleep(1);
-                continue;
-            }
+                if (PlaybackState == PlaybackState.Stopped)
+                {
+                    Dispose();
+                    break;
+                }
+                else if (PlaybackState == PlaybackState.Paused)
+                {
+                    Console.WriteLine("start play pause");
+                    Thread.Sleep(1);
+                    continue;
+                }
+                int read = wavStream.Read(readBuffer, 0, readBuffer.Length);
+                if (read == 0)
+                {
+                    Console.WriteLine("start play read 0");
+                    Thread.Sleep(1);
+                    continue;
+                }
 
-            Marshal.Copy(readBuffer, 0, buffer, (int)bufferSize);
+                // 只复制实际读取的数据
+                Marshal.Copy(readBuffer, 0, buffer, read);
 
-            //Console.WriteLine("start play write");
-            ThrowErrorMessage(InteropAlsa.snd_pcm_writei(_playbackPcm, (nint)buffer, (ulong)(read / header.BlockAlign)), ExceptionMessages.CanNotWriteToDevice);
-            InteropAlsa.snd_pcm_start(_playbackPcm);
-            //Thread.Sleep(1);
-            //if (!started)
-            //{
-            //    writeCount++;
-            //    if (writeCount == 10)
-            //    {
-            //       
-            //        started = true;
-            //    }
-            //}
+                //Console.WriteLine("start play write");
+                ThrowErrorMessage(InteropAlsa.snd_pcm_writei(_playbackPcm, (nint)buffer, (ulong)(read / header.BlockAlign)), ExceptionMessages.CanNotWriteToDevice);
+                InteropAlsa.snd_pcm_start(_playbackPcm);
+                //Thread.Sleep(1);
+                //if (!started)
+                //{
+                //    writeCount++;
+                //    if (writeCount == 10)
+                //    {
+                //
+                //        started = true;
+                //    }
+                //}
 
-            //Console.WriteLine("start play write 1");
+                //Console.WriteLine("start play write 1");
+            }
+            PlaybackState = PlaybackState.Stopped;
+            Console.WriteLine("play end");
         }
-        PlaybackState = PlaybackState.Stopped;
-        Console.WriteLine("play end");
-
-        Marshal.FreeHGlobal(buffer);
+        finally
+        {
+            Marshal.FreeHGlobal(buffer);
+        }
     }
 
     public PlaybackState PlaybackState
@@ -278,9 +284,9 @@ class UnixSoundDevice : ISoundDevice
             }
 
             OpenLoopbackPcm();
-            PcmInitialize(_recordingPcm, header, ref parameters, ref dir);
+            PcmInitialize(_loopbackPcm, header, ref parameters, ref dir);
             ReadStream(onDataAvailable, header, ref parameters, ref dir, token);
-            CloseRecordingPcm();
+            CloseLoopbackPcm();
         });
     }
 
@@ -298,9 +304,13 @@ class UnixSoundDevice : ISoundDevice
 
         fixed (byte* buffer = readBuffer)
         {
-            while (!_wasDisposed && !cancellationToken.IsCancellationRequested && wavStream.Read(readBuffer) != 0)
+            while (!_wasDisposed && !cancellationToken.IsCancellationRequested)
             {
-                ThrowErrorMessage(InteropAlsa.snd_pcm_writei(_playbackPcm, (nint)buffer, frames), ExceptionMessages.CanNotWriteToDevice);
+                int read = wavStream.Read(readBuffer, 0, readBuffer.Length);
+                if (read <= 0)
+                    break;
+
+                ThrowErrorMessage(InteropAlsa.snd_pcm_writei(_playbackPcm, (nint)buffer, (ulong)(read / header.BlockAlign)), ExceptionMessages.CanNotWriteToDevice);
             }
         }
     }
@@ -439,7 +449,7 @@ class UnixSoundDevice : ISoundDevice
 
         OpenMixer();
 
-        ThrowErrorMessage(InteropAlsa.snd_mixer_selem_set_playback_switch_all(_mixelElement, isMute ? 0 : 1), ExceptionMessages.CanNotSetMute);
+        ThrowErrorMessage(InteropAlsa.snd_mixer_selem_set_capture_switch_all(_mixelElement, isMute ? 0 : 1), ExceptionMessages.CanNotSetMute);
 
         CloseMixer();
     }
@@ -484,9 +494,21 @@ class UnixSoundDevice : ISoundDevice
 
         _recordingPcm = default;
     }
+
+    void CloseLoopbackPcm()
+    {
+        if (_loopbackPcm == default)
+            return;
+
+        //ThrowErrorMessage(InteropAlsa.snd_pcm_drain(_loopbackPcm), ExceptionMessages.CanNotDropDevice);
+        ThrowErrorMessage(InteropAlsa.snd_pcm_close(_loopbackPcm), ExceptionMessages.CanNotCloseDevice);
+
+        _loopbackPcm = default;
+    }
+
     private void OpenLoopbackPcm()
     {
-        if (_recordingPcm != default)
+        if (_loopbackPcm != default)
             return;
 
         lock (RecordingInitializationLock)
