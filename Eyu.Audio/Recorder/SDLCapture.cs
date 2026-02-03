@@ -79,16 +79,22 @@ public unsafe class SDLCapture : IWaveIn
     public void Dispose()
     {
         if (_isRecording)
+        {
             StopRecording();
-        DeviceEnumerator.Instance.CaptureDeviceChangedAction -= SdlApi_CaptureDeviceChanged;
+        }
+        DeviceEnumerator.Instance.CaptureDeviceChangedAction -= this.SdlApi_CaptureDeviceChanged;
     }
     AudioSpec sourceSpec;
     private AudioDevice? currentDevice;
 
     public unsafe void StartRecording()
     {
+        // 如果已经在录音，则先停止
         if (_isRecording)
+        {
             StopRecording();
+        }
+
         var audioSpec = new AudioSpec {
             Freq = WaveFormat.SampleRate,
             Format = Sdl.AudioF32,
@@ -121,13 +127,13 @@ public unsafe class SDLCapture : IWaveIn
     }
     private void AudioCallback(void* userdata, byte* stream, int len)
     {
-        if (len != 0 && DataAvailable != null)
+        if (len != 0 && DataAvailable != null && _isRecording && bufferedWaveProvider != null)
         {
             len = Math.Min(_sourceBuffer.Length, len);
             int targetLen = (int)(len * dataLenRatio);
             var targetBuffer = new byte[targetLen];
             Marshal.Copy(new(stream), _sourceBuffer, 0, len);
-            bufferedWaveProvider?.AddSamples(_sourceBuffer, 0, len);
+            bufferedWaveProvider.AddSamples(_sourceBuffer, 0, len);
             var readed = waveProvider.Read(targetBuffer, 0, targetLen);
             DataAvailable?.Invoke(this, new WaveInEventArgs(targetBuffer, readed));
         }
@@ -135,7 +141,11 @@ public unsafe class SDLCapture : IWaveIn
     void CreateWaveProvider(WaveFormat sourceFormat, WaveFormat targetFormat)
     {
         dataLenRatio = (targetFormat.SampleRate * targetFormat.BitsPerSample * targetFormat.Channels * 1.0f) / (sourceFormat.SampleRate * sourceFormat.BitsPerSample * sourceFormat.Channels);
+
+        // 确保每次都创建新的 BufferedWaveProvider
         bufferedWaveProvider = new BufferedWaveProvider(sourceFormat);
+        bufferedWaveProvider.DiscardOnBufferOverflow = true; // 防止缓冲区溢出
+
         ISampleProvider channle = new SampleChannel(bufferedWaveProvider);
         if (sourceFormat.SampleRate != targetFormat.SampleRate)
         {
@@ -160,9 +170,17 @@ public unsafe class SDLCapture : IWaveIn
 
     public void StopRecording()
     {
-        SdlApi.Api.PauseAudioDevice(_device, 1);
-        SdlApi.Api.CloseAudioDevice(_device);
-        RecordingStopped?.Invoke(this, new StoppedEventArgs());
-        _isRecording = false;
+        if (_isRecording && _device != 0)
+        {
+            SdlApi.Api.PauseAudioDevice(_device, 1);
+            SdlApi.Api.CloseAudioDevice(_device);
+
+            // 重置状态
+            _device = 0;
+            _sourceBuffer = null;
+            _isRecording = false;
+
+            RecordingStopped?.Invoke(this, new StoppedEventArgs());
+        }
     }
 }

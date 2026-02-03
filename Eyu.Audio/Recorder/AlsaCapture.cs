@@ -10,7 +10,7 @@ namespace Eyu.Audio.Recorder;
 
 public class AlsaCapture : IWaveIn
 {
-    public AlsaCapture(Utils.AudioDevice? device = null)
+    public AlsaCapture(Utils.AudioDevice? device = null,int audioBufferMillisecondsLength = 100)
     {
         if (device?.IsCapture == false)
         {
@@ -22,11 +22,13 @@ public class AlsaCapture : IWaveIn
             device = new Utils.AudioDevice { Device = "default", IsCapture = true };
         }
         this.audioDevice = device;
+        this.audioBufferMillisecondsLength = audioBufferMillisecondsLength;
         WaveFormat = new WaveFormat(8000, 16, 2);
     }
     private ISoundDevice? alsaDevice;
     private FileStream stream;
     private Utils.AudioDevice? audioDevice;
+    private readonly int audioBufferMillisecondsLength;
     private WaveFormat sourceFormat;
     private float dataLenRatio;
     private BufferedWaveProvider bufferedWaveProvider;
@@ -53,30 +55,37 @@ public class AlsaCapture : IWaveIn
                 RecordingSampleRate = (ushort)WaveFormat.SampleRate,
                 RecordingDeviceName = audioDevice?.Device ?? "default",
             };
-            
+
             // Create the device and get the actual source format
             alsaDevice = AlsaDeviceBuilder.Create(settings);
             sourceFormat = new WaveFormat((int)settings.RecordingSampleRate, (int)settings.RecordingBitsPerSample, (int)settings.RecordingChannels);
-            
+
             // Create wave provider for format conversion
             CreateWaveProvider(sourceFormat, WaveFormat);
-            
+
             // Calculate buffer size based on source format
             int bufferSize = sourceFormat.AverageBytesPerSecond / 4; // Quarter second buffer
             sourceBuffer = new byte[bufferSize];
-            
+
             alsaDevice.Record((buffer) =>
             {
                 // Add samples to the buffered provider for format conversion
                 bufferedWaveProvider.AddSamples(buffer, 0, buffer.Length);
-                
-                // Read converted samples according to target format
-                int targetLen = (int)(buffer.Length * dataLenRatio);
-                var targetBuffer = new byte[targetLen];
-                var readed = waveProvider.Read(targetBuffer, 0, targetLen);
-                
-                // Raise the DataAvailable event with converted samples
-                DataAvailable?.Invoke(this, new WaveInEventArgs(targetBuffer, readed));
+
+                // Check if we have enough data in the buffer based on audioBufferMillisecondsLength
+                int requiredBytes = (int)((audioBufferMillisecondsLength / 1000.0) * WaveFormat.AverageBytesPerSecond);
+
+                // Only raise DataAvailable when we have accumulated enough data
+                if (bufferedWaveProvider.BufferedBytes >= requiredBytes)
+                {
+                    // Read converted samples according to target format
+                    int targetLen = Math.Min(requiredBytes, bufferedWaveProvider.BufferedBytes);
+                    var targetBuffer = new byte[targetLen];
+                    var readed = waveProvider.Read(targetBuffer, 0, targetLen);
+
+                    // Raise the DataAvailable event with converted samples
+                    DataAvailable?.Invoke(this, new WaveInEventArgs(targetBuffer, readed));
+                }
             }, CancellationToken.None);
         }
         catch (Exception ex)
@@ -110,6 +119,18 @@ public class AlsaCapture : IWaveIn
     {
         try
         {
+            if (bufferedWaveProvider != null && bufferedWaveProvider.BufferedBytes > 0)
+            {
+                int remainingBytes = bufferedWaveProvider.BufferedBytes;
+                var remainingBuffer = new byte[remainingBytes];
+                var bytesRead = waveProvider.Read(remainingBuffer, 0, remainingBytes);
+
+                if (bytesRead > 0)
+                {
+                    DataAvailable?.Invoke(this, new WaveInEventArgs(remainingBuffer, bytesRead));
+                }
+            }
+
             alsaDevice?.Stop();
             alsaDevice?.Dispose();
             stream?.Close();
@@ -122,6 +143,8 @@ public class AlsaCapture : IWaveIn
             Console.WriteLine($"Error during StopRecording: {ex.Message}");
             RecordingStopped?.Invoke(this, new StoppedEventArgs(ex));
         }
+        // Send any remaining data in the buffer before stopping
+        
     }
 
     public void Dispose()
@@ -131,17 +154,28 @@ public class AlsaCapture : IWaveIn
 
     void CreateWaveProvider(WaveFormat sourceFormat, WaveFormat targetFormat)
     {
-        dataLenRatio = (targetFormat.SampleRate * targetFormat.BitsPerSample * targetFormat.Channels * 1.0f) / 
+        dataLenRatio = (targetFormat.SampleRate * targetFormat.BitsPerSample * targetFormat.Channels * 1.0f) /
                       (sourceFormat.SampleRate * sourceFormat.BitsPerSample * sourceFormat.Channels);
-        bufferedWaveProvider = new BufferedWaveProvider(sourceFormat);
+
+        // Calculate buffer size based on the desired buffer length in milliseconds
+        int bufferSize = (int)((audioBufferMillisecondsLength / 1000.0) * sourceFormat.AverageBytesPerSecond);
+        // Ensure minimum buffer size to prevent issues
+        bufferSize = Math.Max(bufferSize, sourceFormat.AverageBytesPerSecond / 10); // At least 100ms buffer
+
+        bufferedWaveProvider = new BufferedWaveProvider(sourceFormat)
+        {
+            BufferLength = bufferSize * 4, // Use 4x the required buffer size to prevent overflow
+            DiscardOnBufferOverflow = true // Discard old data if buffer overflows
+        };
+
         ISampleProvider channel = new SampleChannel(bufferedWaveProvider);
-        
+
         // Sample rate conversion
         if (sourceFormat.SampleRate != targetFormat.SampleRate)
         {
             channel = new SampleWaveFormatConversionProvider(targetFormat, channel);
         }
-        
+
         // Channel conversion: mono to stereo or stereo to mono
         if (targetFormat.Channels != 1 && sourceFormat.Channels == 1)
         {
