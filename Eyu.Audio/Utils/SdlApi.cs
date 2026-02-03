@@ -58,12 +58,13 @@ public unsafe static class SdlApi
                 var ptr = Api.GetAudioDeviceName(i, capture);
                 var dev = Api.GetAudioDriver(i);
                 var name = Marshal.PtrToStringUTF8(new IntPtr(ptr));
-                list.Add(new AudioDevice 
-                { 
-                    Device = name, 
-                    Index = i, 
-                    IsCapture = capture == 1 ,
-                    Name = name
+                list.Add(new AudioDevice
+                {
+                    Device = name,
+                    Index = i,
+                    IsCapture = capture == 1,
+                    Name = name,
+                    DriverType = DriverType.Sdl
                 });
             }
         }

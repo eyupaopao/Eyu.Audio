@@ -58,7 +58,8 @@ namespace Eyu.Audio.Utils
                                     { 
                                         Device = deviceName, 
                                         Name = deviceDescription,
-                                        IsCapture = true
+                                        IsCapture = true,
+                                        DriverType = DriverType.Alsa
                                     });
                                 }
                             }
@@ -73,7 +74,8 @@ namespace Eyu.Audio.Utils
                 { 
                     Device = "default", 
                     Name = "Default ALSA Device",
-                    IsCapture = true
+                    IsCapture = true,
+                    DriverType = DriverType.Alsa
                 });
             }
             
@@ -125,7 +127,8 @@ namespace Eyu.Audio.Utils
                                     { 
                                         Device = deviceName, 
                                         Name = deviceDescription,
-                                        IsCapture = false
+                                        IsCapture = false,
+                                        DriverType = DriverType.Alsa
                                     });
                                 }
                             }
@@ -140,7 +143,8 @@ namespace Eyu.Audio.Utils
                 { 
                     Device = "default", 
                     Name = "Default ALSA Device",
-                    IsCapture = false
+                    IsCapture = false,
+                    DriverType = DriverType.Alsa
                 });
             }
             
@@ -171,8 +175,7 @@ namespace Eyu.Audio.Utils
                 {
                     string output = process?.StandardOutput.ReadToEnd();
                     
-                    process?.WaitForExit();
-                    
+                    process?.WaitForExit();                    
                     if (!string.IsNullOrEmpty(output))
                     {
                         var lines = output.Split('\n', StringSplitOptions.RemoveEmptyEntries);
@@ -192,7 +195,8 @@ namespace Eyu.Audio.Utils
                                     { 
                                         Device = deviceName, 
                                         Name = deviceDescription,
-                                        IsCapture = false
+                                        IsCapture = false,
+                                        DriverType = DriverType.Alsa
                                     });
                                 }
                             }
@@ -207,7 +211,8 @@ namespace Eyu.Audio.Utils
                 { 
                     Device = "default", 
                     Name = "Default ALSA Device",
-                    IsCapture = false
+                    IsCapture = false,
+                    DriverType = DriverType.Alsa
                 });
             }
             
@@ -223,11 +228,12 @@ namespace Eyu.Audio.Utils
             var allDevices = GetCaptureDevices();
             var defaultDevice = allDevices.FirstOrDefault(d => d.Device == "default") ?? 
                               allDevices.FirstOrDefault() ?? 
-                              new AudioDevice 
-                              { 
-                                  Device = "default", 
+                              new AudioDevice
+                              {
+                                  Device = "default",
                                   Name = "Default ALSA Device",
-                                  IsCapture = true
+                                  IsCapture = true,
+                                  DriverType = DriverType.Alsa
                               };
             return new List<AudioDevice> { defaultDevice };
         }
@@ -241,11 +247,12 @@ namespace Eyu.Audio.Utils
             var allDevices = GetRenderDevices();
             var defaultDevice = allDevices.FirstOrDefault(d => d.Device == "default") ?? 
                               allDevices.FirstOrDefault() ?? 
-                              new AudioDevice 
-                              { 
-                                  Device = "default", 
+                              new AudioDevice
+                              {
+                                  Device = "default",
                                   Name = "Default ALSA Device",
-                                  IsCapture = false
+                                  IsCapture = false,
+                                  DriverType = DriverType.Alsa
                               };
             return new List<AudioDevice> { defaultDevice };
         }

@@ -5,6 +5,7 @@ using NAudio.Wave;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http.Headers;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 
@@ -21,22 +22,16 @@ public class DeviceEnumerator : IMMNotificationClient
     public static DeviceEnumerator Instance = null!;
    
 
-    public static void CreateInstance(DriverType captureType, DriverType renderType)
+    public static void CreateInstance(DriverType captureType = DriverType.Alsa, DriverType renderType = DriverType.Sdl)
     {
         if (Instance == null)
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 if(captureType == DriverType.Alsa) captureType = DriverType.Wasapi;
-                if (renderType == DriverType.Alsa) renderType = DriverType.Wasapi;
-                Instance = new DeviceEnumerator(captureType, renderType);
-                return;
+                if (renderType == DriverType.Alsa) renderType = DriverType.Wasapi;                
             }
-            else
-            {
-                Instance = new DeviceEnumerator(DriverType.Alsa, DriverType.Sdl);
-                return;
-            }
+            Instance = new DeviceEnumerator(captureType, renderType);
         }
     }
     ~DeviceEnumerator()
@@ -61,7 +56,7 @@ public class DeviceEnumerator : IMMNotificationClient
             else if (captureType == DriverType.Alsa)
                 CaptureDevice = AlsaDeviceEnumerator.GetDefaultCaptureDevice();
             if (renderType == DriverType.Sdl)
-                CaptureDevice = SdlApi.GetDevices(1);
+                RenderDevice = SdlApi.GetDevices(0);
             else if (renderType == DriverType.Alsa)
                 RenderDevice = AlsaDeviceEnumerator.GetDefaultRenderDevice();
             if (captureType == DriverType.Sdl || renderType == DriverType.Sdl)
@@ -122,7 +117,8 @@ public class DeviceEnumerator : IMMNotificationClient
                 Id = item.ID,
                 Device = item.FriendlyName,
                 IsCapture = false,
-                Name = item.FriendlyName
+                Name = item.FriendlyName,
+                DriverType = DriverType.Wasapi
             };
             RenderDevice.Add(device);
         }
@@ -133,7 +129,8 @@ public class DeviceEnumerator : IMMNotificationClient
                 Id = item.ID,
                 Device = item.FriendlyName,
                 IsCapture = true,
-                Name = item.FriendlyName
+                Name = item.FriendlyName,
+                DriverType = DriverType.Wasapi
             };
             CaptureDevice.Add(device);
         }
@@ -227,39 +224,32 @@ public class DeviceEnumerator : IMMNotificationClient
     }
     #endregion
 
-    public IWavePlayer CreatePlayer(AudioDevice? audioDevice = null)
+    public IWavePlayer CreatePlayer(AudioDevice audioDevice)
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows) || renderType == DriverType.Sdl)
+        switch (audioDevice.DriverType)
         {
-            return new SDLOut(audioDevice);
-        }
-        if (audioDevice != null)
-        {
-            var mmDevice = enumerator.GetDevice(audioDevice.Id);
-            return new WasapiOut(mmDevice, AudioClientShareMode.Shared, useEventSync: true, 100);
-        }
-        else
-        {
-            return new WasapiOut();
-        }
+            case DriverType.Wasapi:
+                var mmDevice = enumerator.GetDevice(audioDevice.Id);
+                return new WasapiOut(mmDevice, AudioClientShareMode.Shared, useEventSync: true, 100);
+            case DriverType.Sdl:
+                return new SDLOut(audioDevice);
+            default:
+                return null;
+        }        
     }
     public IWaveIn CreateCapture(AudioDevice? audioDevice = null)
     {
-        if (captureType == DriverType.Sdl || !RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        switch (audioDevice.DriverType)
         {
-            if (audioDevice?.IsCapture == false)
-                throw new Exception("Not support os platform");
-            //return new SDLCapture(audioDevice);
-            return new AlsaCapture(audioDevice);
-        }
-        if (audioDevice == null)
-            return new WasapiCapture();
-        else
-        {
-            var mmDevice = enumerator.GetDevice(audioDevice.Id);
-            if (mmDevice.DataFlow == DataFlow.Render)
-                return new WasapiLoopbackCapture(mmDevice);
-            return new WasapiCapture(mmDevice);
+            case DriverType.Wasapi:
+                var mmDevice = enumerator.GetDevice(audioDevice.Id);
+                if (mmDevice.DataFlow == DataFlow.Render)
+                    return new WasapiLoopbackCapture(mmDevice);
+                return new WasapiCapture(mmDevice);
+            case DriverType.Sdl:
+                return new SDLCapture(audioDevice);
+            default:
+                return new AlsaCapture(audioDevice);
         }
     }
     [SupportedOSPlatform("Linux")]
@@ -293,28 +283,11 @@ public class DeviceEnumerator : IMMNotificationClient
 
 public class AudioDevice
 {
-    public bool IsSelected
-    {
-        get; set;
-    }
-    public string? Id
-    {
-        get; set;
-    }
-    public int Index
-    {
-        get; set;
-    }
-    public bool IsCapture
-    {
-        get; set;
-    }
-    public string? Name
-    {
-        get; set;
-    }
-    public string? Device
-    {
-        get; set;
-    }
+    public bool IsSelected { get; set; }
+    public string? Id { get; set; }
+    public int Index { get; set; }
+    public bool IsCapture { get; set; }
+    public string? Name { get; set; }
+    public string? Device { get; set; }
+    public DriverType DriverType{ get; set; }
 }
