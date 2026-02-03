@@ -48,13 +48,22 @@ public class PulseInterop
     }
     public static void CloseCancel()
     {
-        var output = RunCommand("pactl unload-module module-echo-cancel");
+        try
+        {
+            var output = RunCommand("pactl unload-module module-echo-cancel");
+        }
+        catch (Exception ex)
+        {
+            // Log the error but don't throw to avoid disrupting the shutdown process
+            Console.WriteLine($"Warning: Failed to unload echo cancel module: {ex.Message}");
+        }
     }
     static string RunCommand(string command)
     {
         ProcessStartInfo startInfo = new ProcessStartInfo {
             FileName = "/bin/bash",
             Arguments = "-c \"" + command + "\"",
+            RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
             CreateNoWindow = true
@@ -62,10 +71,10 @@ public class PulseInterop
 
         Process process = new Process { StartInfo = startInfo };
         process.Start();
-        string output = process.StandardError.ReadToEnd();
+        string output = process.StandardOutput.ReadToEnd() + process.StandardError.ReadToEnd();
         process.WaitForExit();
-        if (!string.IsNullOrEmpty(output))
-            throw new Exception(output);
+        if (process.ExitCode != 0)
+            throw new Exception($"Command failed with exit code {process.ExitCode}: {output}");
         return output;
     }
     static string[] commmands = [

@@ -26,11 +26,9 @@ public class ALSACapture : IWaveIn
         WaveFormat = new WaveFormat(8000, 16, 2);
     }
     private ALSAApi? alsaDevice;
-    private FileStream stream;
     private Utils.AudioDevice? audioDevice;
     private readonly int audioBufferMillisecondsLength;
     private BufferedWaveProvider bufferedWaveProvider;
-    private IWaveProvider waveProvider;
     private CancellationTokenSource cancellationTokenSource;
     public WaveFormat WaveFormat
     {
@@ -76,7 +74,7 @@ public class ALSACapture : IWaveIn
                     // Read converted samples according to target format
                     int targetLen = Math.Min(requiredBytes, bufferedWaveProvider.BufferedBytes);
                     var targetBuffer = new byte[targetLen];
-                    var readed = waveProvider.Read(targetBuffer, 0, targetLen);
+                    var readed = bufferedWaveProvider.Read(targetBuffer, 0, targetLen);
 
                     // Raise the DataAvailable event with converted samples
                     DataAvailable?.Invoke(this, new WaveInEventArgs(targetBuffer, readed));
@@ -91,28 +89,28 @@ public class ALSACapture : IWaveIn
 
     public void StopRecording()
     {
-        cancellationTokenSource.Cancel();
-        // Send any remaining data in the buffer before stopping
-        if (bufferedWaveProvider != null && bufferedWaveProvider.BufferedBytes > 0)
+        if (cancellationTokenSource?.IsCancellationRequested == true) return;
+        try
         {
-            int remainingBytes = bufferedWaveProvider.BufferedBytes;
-            var remainingBuffer = new byte[remainingBytes];
-            var bytesRead = waveProvider.Read(remainingBuffer, 0, remainingBytes);
-
-            if (bytesRead > 0)
-            {
-                DataAvailable?.Invoke(this, new WaveInEventArgs(remainingBuffer, bytesRead));
-            }
+            cancellationTokenSource?.Cancel();            
+            alsaDevice?.StopRecording();
+            RecordingStopped?.Invoke(this, new StoppedEventArgs());
         }
-        alsaDevice?.StopRecording();
-        stream?.Close();
-        stream?.Dispose();
-        RecordingStopped?.Invoke(this, new StoppedEventArgs());
+        catch (Exception ex)
+        {
+            RecordingStopped?.Invoke(this, new StoppedEventArgs(ex));
+        }
     }
 
     public void Dispose()
     {
-        StopRecording();
+        if (cancellationTokenSource?.IsCancellationRequested != true)
+        {
+            StopRecording();
+        }
+        
+        // Ensure we clean up resources properly
+        cancellationTokenSource?.Dispose();
     }
        
 

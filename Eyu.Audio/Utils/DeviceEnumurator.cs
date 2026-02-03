@@ -263,9 +263,9 @@ public class DeviceEnumerator : IMMNotificationClient
             {
                 PulseInterop.OpenCancel();
             }
-            catch
+            catch (Exception ex)
             {
-                throw;
+                throw new Exception($"Failed to initialize echo cancellation: {ex.Message}", ex);
             }
         }
         var device = CaptureDevice.FirstOrDefault(a => a.Device != null && a.Device.Contains("Echo-Cancel"))

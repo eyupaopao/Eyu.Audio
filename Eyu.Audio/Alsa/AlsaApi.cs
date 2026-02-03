@@ -199,8 +199,8 @@ class ALSAApi
 
             OpenPlaybackPcm();
             PcmInitialize(_playbackPcm, header, ref parameter, ref dir);
-            WriteStream(wavStream, header, ref parameter, ref dir, cancellationToken);
-            ClosePlaybackPcm();
+            WriteStream(wavStream, header, ref parameter, ref dir, cancellationToken);           
+            Dispose();
         });
     }
 
@@ -272,33 +272,13 @@ class ALSAApi
 
             OpenRecordingPcm();
             PcmInitialize(_recordingPcm, header, ref parameters, ref dir);
-            ReadStream(onDataAvailable, header, ref parameters, ref dir, token);
-            CloseRecordingPcm();
+            ReadStream(onDataAvailable, header, ref parameters, ref dir, token);            
+            Dispose();
         });
     }
 
 
-    unsafe void ReadStream(Stream saveStream, WavHeader header, ref nint @params, ref int dir, CancellationToken cancellationToken)
-    {
-        ulong frames;
 
-        fixed (int* dirP = &dir)
-            ThrowErrorMessage(InteropAlsa.snd_pcm_hw_params_get_period_size(@params, &frames, dirP), ExceptionMessages.CanNotGetPeriodSize);
-
-        var bufferSize = frames * header.BlockAlign;
-        var readBuffer = new byte[(int)bufferSize];
-
-        fixed (byte* buffer = readBuffer)
-        {
-            while (!_wasDisposed && !cancellationToken.IsCancellationRequested)
-            {
-                ThrowErrorMessage(InteropAlsa.snd_pcm_readi(_recordingPcm, (nint)buffer, frames), ExceptionMessages.CanNotReadFromDevice);
-                saveStream.Write(readBuffer);
-            }
-        }
-
-        saveStream.Flush();
-    }
 
     void OpenRecordingPcm()
     {
@@ -313,13 +293,18 @@ class ALSAApi
     {
         if (_recordingPcm == default)
             return;
+        // ThrowErrorMessage(InteropAlsa.snd_pcm_drain(_recordingPcm), ExceptionMessages.CanNotDropDevice);
         ThrowErrorMessage(InteropAlsa.snd_pcm_close(_recordingPcm), ExceptionMessages.CanNotCloseDevice);
         _recordingPcm = default;
     }
 
     public void StopRecording()
     {
-        Dispose();
+        // Only dispose if not already disposed
+        if (!_wasDisposed)
+        {
+            Dispose();
+        }
     }
 
     #endregion
@@ -345,8 +330,8 @@ class ALSAApi
 
             OpenLoopbackPcm();
             PcmInitialize(_loopbackPcm, header, ref parameters, ref dir);
-            ReadStream(onDataAvailable, header, ref parameters, ref dir, token);
-            CloseLoopbackPcm();
+            ReadStream(onDataAvailable, header, ref parameters, ref dir, token);           
+            Dispose();
         });
     }
 
@@ -523,11 +508,11 @@ class ALSAApi
     public void Dispose()
     {
         if (_wasDisposed)
-            return;
+            return;        
         _wasDisposed = true;
         ClosePlaybackPcm();
+        CloseLoopbackPcm();
         CloseRecordingPcm();
-        CloseMixer();
     }
 
     void ThrowErrorMessage(int errorNum, string message)
