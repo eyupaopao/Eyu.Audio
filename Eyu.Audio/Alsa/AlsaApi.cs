@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace Eyu.Audio.Alsa;
 
-class ALSAApi
+public class ALSAApi
 {
     static readonly object PlaybackInitializationLock = new();
     static readonly object RecordingInitializationLock = new();
@@ -407,22 +407,32 @@ class ALSAApi
     void SetPlaybackVolume(long volume)
     {
         OpenMixer();
-
-        ThrowErrorMessage(InteropAlsa.snd_mixer_selem_set_playback_volume(_mixelElement, snd_mixer_selem_channel_id.SND_MIXER_SCHN_FRONT_LEFT, volume), ExceptionMessages.CanNotSetVolume);
-        ThrowErrorMessage(InteropAlsa.snd_mixer_selem_set_playback_volume(_mixelElement, snd_mixer_selem_channel_id.SND_MIXER_SCHN_FRONT_RIGHT, volume), ExceptionMessages.CanNotSetVolume);
+        
+        if (_mixelElement != default)
+        {
+            // Check if the element has playback volume capability
+            if (InteropAlsa.snd_mixer_selem_has_playback_volume(_mixelElement) > 0)
+            {
+                ThrowErrorMessage(InteropAlsa.snd_mixer_selem_set_playback_volume(_mixelElement, snd_mixer_selem_channel_id.SND_MIXER_SCHN_FRONT_LEFT, volume), ExceptionMessages.CanNotSetVolume);
+                ThrowErrorMessage(InteropAlsa.snd_mixer_selem_set_playback_volume(_mixelElement, snd_mixer_selem_channel_id.SND_MIXER_SCHN_FRONT_RIGHT, volume), ExceptionMessages.CanNotSetVolume);
+            }
+        }
 
         CloseMixer();
     }
 
     unsafe long GetPlaybackVolume()
     {
-        long volumeLeft;
-        long volumeRight;
+        long volumeLeft = 0;
+        long volumeRight = 0;
 
         OpenMixer();
 
-        ThrowErrorMessage(InteropAlsa.snd_mixer_selem_get_playback_volume(_mixelElement, snd_mixer_selem_channel_id.SND_MIXER_SCHN_FRONT_LEFT, &volumeLeft), ExceptionMessages.CanNotSetVolume);
-        ThrowErrorMessage(InteropAlsa.snd_mixer_selem_get_playback_volume(_mixelElement, snd_mixer_selem_channel_id.SND_MIXER_SCHN_FRONT_RIGHT, &volumeRight), ExceptionMessages.CanNotSetVolume);
+        if (_mixelElement != default && InteropAlsa.snd_mixer_selem_has_playback_volume(_mixelElement) > 0)
+        {
+            ThrowErrorMessage(InteropAlsa.snd_mixer_selem_get_playback_volume(_mixelElement, snd_mixer_selem_channel_id.SND_MIXER_SCHN_FRONT_LEFT, &volumeLeft), ExceptionMessages.CanNotSetVolume);
+            ThrowErrorMessage(InteropAlsa.snd_mixer_selem_get_playback_volume(_mixelElement, snd_mixer_selem_channel_id.SND_MIXER_SCHN_FRONT_RIGHT, &volumeRight), ExceptionMessages.CanNotSetVolume);
+        }
 
         CloseMixer();
 
@@ -432,21 +442,32 @@ class ALSAApi
     void SetRecordingVolume(long volume)
     {
         OpenMixer();
-
-        ThrowErrorMessage(InteropAlsa.snd_mixer_selem_set_capture_volume(_mixelElement, snd_mixer_selem_channel_id.SND_MIXER_SCHN_FRONT_LEFT, volume), ExceptionMessages.CanNotSetVolume);
-        ThrowErrorMessage(InteropAlsa.snd_mixer_selem_set_capture_volume(_mixelElement, snd_mixer_selem_channel_id.SND_MIXER_SCHN_FRONT_RIGHT, volume), ExceptionMessages.CanNotSetVolume);
+        
+        if (_mixelElement != default)
+        {
+            // Check if the element has capture volume capability
+            if (InteropAlsa.snd_mixer_selem_has_capture_volume(_mixelElement) > 0)
+            {
+                ThrowErrorMessage(InteropAlsa.snd_mixer_selem_set_capture_volume(_mixelElement, snd_mixer_selem_channel_id.SND_MIXER_SCHN_FRONT_LEFT, volume), ExceptionMessages.CanNotSetVolume);
+                ThrowErrorMessage(InteropAlsa.snd_mixer_selem_set_capture_volume(_mixelElement, snd_mixer_selem_channel_id.SND_MIXER_SCHN_FRONT_RIGHT, volume), ExceptionMessages.CanNotSetVolume);
+            }
+        }
 
         CloseMixer();
     }
 
     unsafe long GetRecordingVolume()
     {
-        long volumeLeft, volumeRight;
+        long volumeLeft = 0;
+        long volumeRight = 0;
 
         OpenMixer();
 
-        ThrowErrorMessage(InteropAlsa.snd_mixer_selem_get_capture_volume(_mixelElement, snd_mixer_selem_channel_id.SND_MIXER_SCHN_FRONT_LEFT, &volumeLeft), ExceptionMessages.CanNotSetVolume);
-        ThrowErrorMessage(InteropAlsa.snd_mixer_selem_get_capture_volume(_mixelElement, snd_mixer_selem_channel_id.SND_MIXER_SCHN_FRONT_RIGHT, &volumeRight), ExceptionMessages.CanNotSetVolume);
+        if (_mixelElement != default && InteropAlsa.snd_mixer_selem_has_capture_volume(_mixelElement) > 0)
+        {
+            ThrowErrorMessage(InteropAlsa.snd_mixer_selem_get_capture_volume(_mixelElement, snd_mixer_selem_channel_id.SND_MIXER_SCHN_FRONT_LEFT, &volumeLeft), ExceptionMessages.CanNotSetVolume);
+            ThrowErrorMessage(InteropAlsa.snd_mixer_selem_get_capture_volume(_mixelElement, snd_mixer_selem_channel_id.SND_MIXER_SCHN_FRONT_RIGHT, &volumeRight), ExceptionMessages.CanNotSetVolume);
+        }
 
         CloseMixer();
 
@@ -459,7 +480,14 @@ class ALSAApi
 
         OpenMixer();
 
-        ThrowErrorMessage(InteropAlsa.snd_mixer_selem_set_playback_switch_all(_mixelElement, isMute ? 0 : 1), ExceptionMessages.CanNotSetMute);
+        if (_mixelElement != default)
+        {
+            // Check if the element has playback switch capability
+            if (InteropAlsa.snd_mixer_selem_has_playback_switch(_mixelElement) > 0)
+            {
+                ThrowErrorMessage(InteropAlsa.snd_mixer_selem_set_playback_switch_all(_mixelElement, isMute ? 0 : 1), ExceptionMessages.CanNotSetMute);
+            }
+        }
 
         CloseMixer();
     }
@@ -470,7 +498,14 @@ class ALSAApi
 
         OpenMixer();
 
-        ThrowErrorMessage(InteropAlsa.snd_mixer_selem_set_capture_switch_all(_mixelElement, isMute ? 0 : 1), ExceptionMessages.CanNotSetMute);
+        if (_mixelElement != default)
+        {
+            // Check if the element has capture switch capability
+            if (InteropAlsa.snd_mixer_selem_has_capture_switch(_mixelElement) > 0)
+            {
+                ThrowErrorMessage(InteropAlsa.snd_mixer_selem_set_capture_switch_all(_mixelElement, isMute ? 0 : 1), ExceptionMessages.CanNotSetMute);
+            }
+        }
 
         CloseMixer();
     }

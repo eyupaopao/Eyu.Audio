@@ -222,6 +222,19 @@ public static class InteropAlsa
 
     [DllImport(AlsaLibrary)]
     public static extern int snd_mixer_selem_set_capture_volume_range(IntPtr elem, long min, long max);
+    
+    [DllImport(AlsaLibrary)]
+    public static extern int snd_mixer_selem_has_playback_volume(IntPtr elem);
+    
+    [DllImport(AlsaLibrary)]
+    public static extern int snd_mixer_selem_has_capture_volume(IntPtr elem);
+    
+    [DllImport(AlsaLibrary)]
+    public static extern int snd_mixer_selem_has_capture_switch(IntPtr elem);
+    
+    [DllImport(AlsaLibrary)]
+    public static extern int snd_mixer_selem_has_playback_switch(IntPtr elem);
+    
     [DllImport(AlsaLibrary)]
     public static extern int snd_pcm_hw_params_set_buffer_size_near(IntPtr elem, IntPtr @params, IntPtr size);
     [DllImport(AlsaLibrary)]
