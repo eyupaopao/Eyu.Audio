@@ -34,6 +34,9 @@ public class ALSACapture : IWaveIn
     {
         get; set;
     }
+    IWaveProvider waveProvider;
+
+    float dataLenRatio;
 
     public event EventHandler<WaveInEventArgs>? DataAvailable;
     public event EventHandler<StoppedEventArgs>? RecordingStopped;
@@ -85,6 +88,35 @@ public class ALSACapture : IWaveIn
         {
             RecordingStopped?.Invoke(this, new StoppedEventArgs(ex));
         }
+    }
+    void CreateWaveProvider(WaveFormat sourceFormat, WaveFormat targetFormat)
+    {
+        dataLenRatio = (targetFormat.SampleRate * targetFormat.BitsPerSample * targetFormat.Channels * 1.0f) / (sourceFormat.SampleRate * sourceFormat.BitsPerSample * sourceFormat.Channels);
+
+        // 确保每次都创建新的 BufferedWaveProvider
+        bufferedWaveProvider = new BufferedWaveProvider(sourceFormat);
+        bufferedWaveProvider.DiscardOnBufferOverflow = true; // 防止缓冲区溢出
+
+        ISampleProvider channle = new SampleChannel(bufferedWaveProvider);
+        if (sourceFormat.SampleRate != targetFormat.SampleRate)
+        {
+            channle = new SampleWaveFormatConversionProvider(WaveFormat, channle);
+        }
+        if (targetFormat.Channels != 1 && sourceFormat.Channels == 1)
+        {
+            channle = new MonoToStereoSampleProvider(channle);
+        }
+        if (targetFormat.Channels == 1 && sourceFormat.Channels != 1)
+        {
+            channle = new StereoToMonoSampleProvider(channle);
+        }
+
+        if (targetFormat.BitsPerSample == 32)
+            waveProvider = new SampleToWaveProvider(channle);
+        else if (targetFormat.BitsPerSample == 24)
+            waveProvider = new SampleToWaveProvider24(channle);
+        else
+            waveProvider = new SampleToWaveProvider16(channle);
     }
 
     public void StopRecording()

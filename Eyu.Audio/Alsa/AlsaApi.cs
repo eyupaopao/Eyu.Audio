@@ -17,6 +17,218 @@ public class ALSAApi
     {
         get;
     }
+
+    public WaveFormat GetFormat(bool capture)
+    {
+        nint pcm = default;
+        nint parameters = default;
+        snd_pcm_stream_t streamType = capture ? snd_pcm_stream_t.SND_PCM_STREAM_CAPTURE : snd_pcm_stream_t.SND_PCM_STREAM_PLAYBACK;
+        string deviceName = capture ? Settings.RecordingDeviceName : Settings.PlaybackDeviceName;
+
+        // Get the requested settings
+        uint requestedSampleRate, requestedChannels;
+        ushort requestedBitsPerSample;
+        
+        if (capture)
+        {
+            requestedSampleRate = Settings.RecordingSampleRate;
+            requestedChannels = Settings.RecordingChannels;
+            requestedBitsPerSample = Settings.RecordingBitsPerSample;
+        }
+        else
+        {
+            requestedSampleRate = Settings.PlaybackSampleRate;
+            requestedChannels = Settings.PlaybackChannels;
+            requestedBitsPerSample = Settings.PlaybackBitsPerSample;
+        }
+
+        try
+        {
+            // Open PCM device
+            int err = InteropAlsa.snd_pcm_open(ref pcm, deviceName, streamType, 0);
+            if (err < 0)
+            {
+                // If we can't open the device, return the requested format
+                // In a real scenario, we might want to try other devices or return common defaults
+                return new WaveFormat((int)requestedSampleRate, requestedBitsPerSample, (int)requestedChannels);
+            }
+
+            // Allocate hardware parameters
+            err = InteropAlsa.snd_pcm_hw_params_malloc(ref parameters);
+            if (err < 0)
+            {
+                // If we can't allocate parameters, return the requested format
+                return new WaveFormat((int)requestedSampleRate, requestedBitsPerSample, (int)requestedChannels);
+            }
+
+            // Fill hardware parameters with default values
+            err = InteropAlsa.snd_pcm_hw_params_any(pcm, parameters);
+            if (err < 0)
+            {
+                // If we can't get default parameters, return the requested format
+                return new WaveFormat((int)requestedSampleRate, requestedBitsPerSample, (int)requestedChannels);
+            }
+
+            // Try to set the access type
+            err = InteropAlsa.snd_pcm_hw_params_set_access(pcm, parameters, snd_pcm_access_t.SND_PCM_ACCESS_RW_INTERLEAVED);
+            if (err < 0)
+            {
+                // If we can't set access type, return the requested format
+                return new WaveFormat((int)requestedSampleRate, requestedBitsPerSample, (int)requestedChannels);
+            }
+
+            // Try to set the format based on bits per sample
+            snd_pcm_format_t formatType = requestedBitsPerSample switch
+            {
+                8 => snd_pcm_format_t.SND_PCM_FORMAT_U8,
+                16 => snd_pcm_format_t.SND_PCM_FORMAT_S16_LE,
+                24 => snd_pcm_format_t.SND_PCM_FORMAT_S24_LE,
+                32 => snd_pcm_format_t.SND_PCM_FORMAT_S32_LE,
+                _ => snd_pcm_format_t.SND_PCM_FORMAT_S16_LE // Default to 16-bit
+            };
+
+            err = InteropAlsa.snd_pcm_hw_params_set_format(pcm, parameters, formatType);
+            ushort actualBitsPerSample = requestedBitsPerSample;
+            if (err < 0)
+            {
+                // If the requested format isn't supported, try common alternatives in order of preference
+                snd_pcm_format_t[] formatsToTry = {
+                    snd_pcm_format_t.SND_PCM_FORMAT_S16_LE,  // 16-bit is most commonly supported
+                    snd_pcm_format_t.SND_PCM_FORMAT_U8,    // 8-bit as fallback
+                    snd_pcm_format_t.SND_PCM_FORMAT_S24_LE, // 24-bit if supported
+                    snd_pcm_format_t.SND_PCM_FORMAT_S32_LE  // 32-bit if supported
+                };
+                
+                bool formatFound = false;
+                foreach (var fmt in formatsToTry)
+                {
+                    err = InteropAlsa.snd_pcm_hw_params_set_format(pcm, parameters, fmt);
+                    if (err >= 0)
+                    {
+                        formatType = fmt;
+                        actualBitsPerSample = fmt switch
+                        {
+                            snd_pcm_format_t.SND_PCM_FORMAT_U8 => 8,
+                            snd_pcm_format_t.SND_PCM_FORMAT_S16_LE => 16,
+                            snd_pcm_format_t.SND_PCM_FORMAT_S24_LE => 24,
+                            snd_pcm_format_t.SND_PCM_FORMAT_S32_LE => 32,
+                            _ => 16
+                        };
+                        formatFound = true;
+                        break;
+                    }
+                }
+                
+                // If no format is supported, return the requested format
+                if (!formatFound)
+                {
+                    return new WaveFormat((int)requestedSampleRate, requestedBitsPerSample, (int)requestedChannels);
+                }
+            }
+            else
+            {
+                // Format was set successfully, update actual bits per sample
+                actualBitsPerSample = formatType switch
+                {
+                    snd_pcm_format_t.SND_PCM_FORMAT_U8 => 8,
+                    snd_pcm_format_t.SND_PCM_FORMAT_S16_LE => 16,
+                    snd_pcm_format_t.SND_PCM_FORMAT_S24_LE => 24,
+                    snd_pcm_format_t.SND_PCM_FORMAT_S32_LE => 32,
+                    _ => 16
+                };
+            }
+
+            // Try to set the number of channels
+            // We'll try the requested number first, then fall back to defaults if it fails
+            err = InteropAlsa.snd_pcm_hw_params_set_channels(pcm, parameters, requestedChannels);
+            uint actualChannels = requestedChannels;
+            if (err < 0)
+            {
+                // If requested channels fail, try common values in order of preference
+                uint[] commonChannels = { 2, 1, 4, 6, 8 }; // Stereo, mono, then surround sound configs
+                foreach (uint ch in commonChannels)
+                {
+                    err = InteropAlsa.snd_pcm_hw_params_set_channels(pcm, parameters, ch);
+                    if (err >= 0)
+                    {
+                        actualChannels = ch;
+                        break;
+                    }
+                }
+                
+                // If no common channel count works, return the requested format
+                if (err < 0)
+                {
+                    return new WaveFormat((int)requestedSampleRate, actualBitsPerSample, (int)requestedChannels);
+                }
+            }
+
+            // Try to set the sample rate
+            // We'll use the set_rate_near function that is available
+            uint actualSampleRate = requestedSampleRate;
+            int dir = 0;
+            unsafe
+            {
+                uint* actualSampleRatePtr = &actualSampleRate;
+                int* dirPtr = &dir;
+                err = InteropAlsa.snd_pcm_hw_params_set_rate_near(pcm, parameters, actualSampleRatePtr, dirPtr);
+            }
+            
+            // If setting the exact rate fails, try common sample rates in order of preference
+            if (err < 0)
+            {
+                uint[] commonRates = { 44100, 48000, 32000, 22050, 16000, 11025, 8000 };
+                foreach (uint rate in commonRates)
+                {
+                    uint testRate = rate;
+                    int testDir = 0;
+                    unsafe
+                    {
+                        uint* testRatePtr = &testRate;
+                        int* testDirPtr = &testDir;
+                        err = InteropAlsa.snd_pcm_hw_params_set_rate_near(pcm, parameters, testRatePtr, testDirPtr);
+                    }
+                    
+                    if (err >= 0)
+                    {
+                        actualSampleRate = testRate;
+                        break;
+                    }
+                }
+                
+                // If no common rate works, return the requested format
+                if (err < 0)
+                {
+                    return new WaveFormat((int)requestedSampleRate, actualBitsPerSample, (int)actualChannels);
+                }
+            }
+
+            // Apply the hardware parameters
+            err = InteropAlsa.snd_pcm_hw_params(pcm, parameters);
+            if (err < 0)
+            {
+                // If applying parameters fails, return the requested format
+                return new WaveFormat((int)requestedSampleRate, actualBitsPerSample, (int)actualChannels);
+            }
+
+            // Return the actual supported format
+            return new WaveFormat((int)actualSampleRate, actualBitsPerSample, (int)actualChannels);
+        }
+        finally
+        {
+            // Clean up
+            if (parameters != default)
+            {
+                // Since snd_pcm_hw_params_free doesn't exist, we'll just set to default
+                parameters = default;
+            }
+            if (pcm != default)
+            {
+                InteropAlsa.snd_pcm_close(pcm);
+            }
+        }
+    }
+
     public long PlaybackVolume
     {
         get => GetPlaybackVolume(); set => SetPlaybackVolume(value);
@@ -47,7 +259,6 @@ public class ALSAApi
     {
         Settings = settings;
     }
-
     #region play
     public void Play(IWaveProvider waveProvider, CancellationToken cancellationToken)
     {
@@ -390,7 +601,17 @@ public class ALSAApi
         };
         ThrowErrorMessage(formatResult, ExceptionMessages.CanNotSetFormat);
 
-        ThrowErrorMessage(InteropAlsa.snd_pcm_hw_params_set_channels(pcm, @params, header.NumChannels), ExceptionMessages.CanNotSetChannel);
+        // Try to set the requested number of channels, but fall back to 1 if that fails
+        int channelsResult = InteropAlsa.snd_pcm_hw_params_set_channels(pcm, @params, header.NumChannels);
+        if (channelsResult < 0)
+        {
+            // If the requested number of channels fails, try to set to 1 channel as a fallback
+            int fallbackResult = InteropAlsa.snd_pcm_hw_params_set_channels(pcm, @params, 1);
+            if (fallbackResult < 0)
+            {
+                ThrowErrorMessage(channelsResult, ExceptionMessages.CanNotSetChannel);
+            }
+        }
 
         var val = header.SampleRate;
         fixed (int* dirP = &dir)

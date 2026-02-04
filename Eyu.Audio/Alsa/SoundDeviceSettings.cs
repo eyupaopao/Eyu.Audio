@@ -37,4 +37,22 @@ public class SoundDeviceSettings
     /// </summary>
     /// <remarks>check device specification for supported bit depths</remarks>
     public ushort RecordingBitsPerSample { get; set; } = 16;
+
+    /// <summary>
+    /// sample rate to use for playback. Default: 8000
+    /// </summary>
+    /// <remarks>check your device specification for supported rates</remarks>
+    public uint PlaybackSampleRate { get; set; } = 8000;
+
+    /// <summary>
+    /// number of channels to use for playback. Default: 2
+    /// </summary>
+    /// <remarks>check your device specification for available numbers</remarks>
+    public ushort PlaybackChannels { get; set; } = 2;
+
+    /// <summary>
+    /// number of bits per sample to use for playback. Default: 16
+    /// </summary>
+    /// <remarks>check device specification for supported bit depths</remarks>
+    public ushort PlaybackBitsPerSample { get; set; } = 16;
 }
