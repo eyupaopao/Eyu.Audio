@@ -1,9 +1,8 @@
-﻿// See https://aka.ms/new-console-template for more information
+// See https://aka.ms/new-console-template for more information
 using Eyu.Audio;
 using Eyu.Audio.Aes67;
 using Eyu.Audio.Alsa;
 using Eyu.Audio.Reader;
-using Eyu.Audio.Recorder;
 using Eyu.Audio.Timer;
 using Eyu.Audio.Utils;
 using NAudio.Wave;
@@ -20,6 +19,8 @@ using System.Net.Sockets;
 // TestAlsaCaptureToFile();
 // ListAlsaDevices();
 // TestAlsaCaptureWithDevice("default");
+// TestPulseLoopbackCapture();        // Linux: 环回采集（系统播放）测试
+// TestPulseLoopbackCaptureToFile();  // Linux: 环回采集并保存为 WAV
 
 static void TestAlsaCapture()
 {
@@ -44,6 +45,16 @@ static void TestAlsaCaptureWithDevice(string deviceName)
     Console.WriteLine("Use default device instead or modify the test method.");
 }
 
+static void TestPulseLoopbackCapture()
+{
+    PulseLoopbackCaptureTest.TestPulseLoopbackCapture();
+}
+
+static void TestPulseLoopbackCaptureToFile()
+{
+    PulseLoopbackCaptureTest.TestPulseLoopbackCaptureToFile();
+}
+
 
 //TestAes67();
 //PulseCapture.OpenCancel();
@@ -65,8 +76,11 @@ static void TestAlsaCaptureWithDevice(string deviceName)
 //     Console.WriteLine($"capture {e.BytesRecorded} bytes");
 // }
 
-// List ALSA devices
-ListAlsaDevices();
+// List ALSA devices（非 Linux 时运行）
+if (!System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Linux))
+    ListAlsaDevices();
+else
+    TestPulseLoopbackCapture();  // Linux: 默认运行环回采集测试，可改为 TestPulseLoopbackCaptureToFile() 保存 WAV
 
 static void SdlOut(string[] args)
 {
@@ -138,9 +152,9 @@ static void AlsaRecord(string[] args)
         IsCapture = true,
         Name = args[0]
     };
-    var alsa = new AlsaCapture(audioDevice);
+    var alsa = new ALSACapture(audioDevice);
     //alsa.DataAvailable += Alsa_DataAvailable;
-    alsa.StartRecording(args[1]);
+    alsa.StartRecording();
 }
 
 static void TestAes67()

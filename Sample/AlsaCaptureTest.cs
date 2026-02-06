@@ -1,4 +1,4 @@
-using Eyu.Audio.Recorder;
+using Eyu.Audio;
 using Eyu.Audio.Utils;
 using NAudio.Wave;
 using System;
@@ -16,7 +16,7 @@ namespace Sample
             try
             {
                 // Create AlsaCapture instance with default settings
-                var capture = new AlsaCapture();
+                var capture = new ALSACapture();
                 
                 // Set the desired recording format
                 capture.WaveFormat = new WaveFormat(44100, 16, 2); // 44.1kHz, 16-bit, stereo
@@ -70,7 +70,7 @@ namespace Sample
             try
             {
                 // Create AlsaCapture instance
-                var capture = new AlsaCapture();
+                var capture = new ALSACapture();
                 capture.WaveFormat = new WaveFormat(44100, 16, 2);
                 
                 string fileName = "test_alsa_capture.wav";
@@ -78,40 +78,26 @@ namespace Sample
                 Console.WriteLine($"Starting recording to file: {fileName}");
                 Console.WriteLine("Recording for 10 seconds...");
                 
-                // Record directly to file
-                capture.StartRecording(fileName);
-                
-                // Wait for 10 seconds
-                System.Threading.Thread.Sleep(10000);
-                
-                // Stop recording
-                capture.StopRecording();
+                using (var writer = new WaveFileWriter(fileName, capture.WaveFormat))
+                {
+                    capture.DataAvailable += (_, e) => writer.Write(e.Buffer, 0, e.BytesRecorded);
+                    capture.StartRecording();
+                    System.Threading.Thread.Sleep(10000);
+                    capture.StopRecording();
+                }
                 
                 Console.WriteLine($"Recording completed. File saved as: {fileName}");
                 
-                // Check if file exists and its size
                 if (File.Exists(fileName))
                 {
                     var fileInfo = new FileInfo(fileName);
                     Console.WriteLine($"File size: {fileInfo.Length} bytes");
-                    
-                    // Verify it's a valid WAV file by checking header
                     using (var fs = new FileStream(fileName, FileMode.Open))
                     {
                         byte[] header = new byte[12];
                         int read = fs.Read(header, 0, 12);
-                        if (read >= 12)
-                        {
-                            string riff = System.Text.Encoding.ASCII.GetString(header, 0, 4);
-                            if (riff == "RIFF")
-                            {
-                                Console.WriteLine("Valid WAV file detected.");
-                            }
-                            else
-                            {
-                                Console.WriteLine("File may not be a valid WAV file.");
-                            }
-                        }
+                        if (read >= 12 && System.Text.Encoding.ASCII.GetString(header, 0, 4) == "RIFF")
+                            Console.WriteLine("Valid WAV file detected.");
                     }
                 }
             }
@@ -198,7 +184,7 @@ namespace Sample
             try
             {
                 // Create AudioDevice with the specified device name
-                var audioDevice = new AudioDevice 
+                var audioDevice = new Eyu.Audio.Utils.AudioDevice 
                 { 
                     Device = deviceName, 
                     IsCapture = true,
@@ -206,7 +192,7 @@ namespace Sample
                 };
                 
                 // Create AlsaCapture with specific device
-                var capture = new AlsaCapture(audioDevice);
+                var capture = new ALSACapture(audioDevice);
                 capture.WaveFormat = new WaveFormat(48000, 16, 2); // Higher quality
                 
                 bool dataReceived = false;

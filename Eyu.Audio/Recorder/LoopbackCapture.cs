@@ -15,6 +15,7 @@ public class LoopbackCapture : WasapiCapture
     public LoopbackCapture() : base(WasapiLoopbackCapture.GetDefaultLoopbackCaptureDevice(), false, 100)
     {
     }
+
     protected override AudioClientStreamFlags GetAudioClientStreamFlags()
     {
         return AudioClientStreamFlags.Loopback | base.GetAudioClientStreamFlags();
@@ -24,7 +25,7 @@ public class LoopbackCapture : WasapiCapture
     {
         try
         {
-            capture.StartRecording();
+            base.StartRecording();
         }
         catch
         {
@@ -34,36 +35,20 @@ public class LoopbackCapture : WasapiCapture
 
     public new void StopRecording()
     {
-        capture.StopRecording();
+        base.StopRecording();
     }
 
-    public event EventHandler<WaveInEventArgs> DataAvailable
+    public new event EventHandler<WaveInEventArgs>? DataAvailable
     {
-        add
-        {
-            capture.DataAvailable += value;
-        }
-        remove
-        {
-            capture.DataAvailable -= value;
-        }
+        add => base.DataAvailable += value;
+        remove => base.DataAvailable -= value;
     }
 
-
-
-    public event EventHandler<StoppedEventArgs> RecordingStopped
+    public new event EventHandler<StoppedEventArgs>? RecordingStopped
     {
-        add
-        {
-            capture.RecordingStopped += value;
-        }
-        remove
-        {
-            capture.RecordingStopped -= value;
-        }
+        add => base.RecordingStopped += value;
+        remove => base.RecordingStopped -= value;
     }
-    IWaveIn capture;
-    public WaveFormat WaveFormat { get; set; }
 
-
+    public new WaveFormat WaveFormat { get => base.WaveFormat; set => base.WaveFormat = value; }
 }

@@ -1,4 +1,4 @@
-﻿using NAudio.Wave;
+using NAudio.Wave;
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -541,7 +541,7 @@ public class ALSAApi
 
             OpenLoopbackPcm();
             PcmInitialize(_loopbackPcm, header, ref parameters, ref dir);
-            ReadStream(onDataAvailable, header, ref parameters, ref dir, token);           
+            ReadStream(onDataAvailable, header, ref parameters, ref dir, token, _loopbackPcm);           
             Dispose();
         });
     }
@@ -566,8 +566,9 @@ public class ALSAApi
 
     #endregion
 
-    unsafe void ReadStream(Action<byte[]>? onDataAvailable, WavHeader header, ref nint @params, ref int dir, CancellationToken cancellationToken)
+    unsafe void ReadStream(Action<byte[]>? onDataAvailable, WavHeader header, ref nint @params, ref int dir, CancellationToken cancellationToken, nint readPcm = default)
     {
+        nint pcm = readPcm != default ? readPcm : _recordingPcm;
         ulong frames;
 
         fixed (int* dirP = &dir)
@@ -580,7 +581,7 @@ public class ALSAApi
         {
             while (!_wasDisposed && !cancellationToken.IsCancellationRequested)
             {
-                ThrowErrorMessage(InteropAlsa.snd_pcm_readi(_recordingPcm, (nint)buffer, frames), ExceptionMessages.CanNotReadFromDevice);
+                ThrowErrorMessage(InteropAlsa.snd_pcm_readi(pcm, (nint)buffer, frames), ExceptionMessages.CanNotReadFromDevice);
                 onDataAvailable?.Invoke(readBuffer);
             }
         }

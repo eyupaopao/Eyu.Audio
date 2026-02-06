@@ -1,4 +1,4 @@
-﻿using NAudio.CoreAudioApi;
+using NAudio.CoreAudioApi;
 using NAudio.CoreAudioApi.Interfaces;
 using NAudio.Wave;
 using NAudio.Wave.Asio;
@@ -250,6 +250,18 @@ public class DeviceEnumerator : IMMNotificationClient
             default:
                 return new ALSACapture(audioDevice);
         }
+    }
+
+    /// <summary>
+    /// 创建环回采集（系统播放音频）。Windows 使用 WasapiLoopbackCapture，Linux 使用 PulseAudio/PipeWire monitor 源。
+    /// </summary>
+    public IWaveIn CreateLoopbackCapture(string? monitorSourceName = null, int audioBufferMillisecondsLength = 100)
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            return new LoopbackCapture();
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return new PulseLoopbackCapture(monitorSourceName, audioBufferMillisecondsLength);
+        throw new PlatformNotSupportedException("当前平台不支持环回采集");
     }
     [SupportedOSPlatform("Linux")]
     public IWaveIn CreateCaptureEchoCancel()
