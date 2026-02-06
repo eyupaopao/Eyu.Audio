@@ -1,20 +1,21 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFramework>net10.0</TargetFramework>
+		<TargetFrameworks>net8.0;net10.0</TargetFrameworks>
 		<Nullable>enable</Nullable>
-		<Version>1.0.5</Version>
+		<Version>1.0.6</Version>
 		<AllowUnsafeBlocks>True</AllowUnsafeBlocks>
 		<GeneratePackageOnBuild>True</GeneratePackageOnBuild>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
 		<Title>Eyu.Audio</Title>
 		<Authors>eyupaopao</Authors>
 		<Company>eyupaopao</Company>
-		<PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
 		<PackageProjectUrl>https://github.com/eyupaopao/Eyu.Audio</PackageProjectUrl>
 	</PropertyGroup>
-
-
+	<ItemGroup>
+		<None Include="README.md" Pack="true" PackagePath="/" />
+	</ItemGroup>
 	<ItemGroup>
 		<PackageReference Include="BunLabs.NAudio.Flac" Version="2.0.1" />
 		<PackageReference Include="NAudio" Version="2.2.1" />
@@ -25,23 +26,12 @@
 		<PackageReference Include="NWaves" Version="0.9.6" />
 		<PackageReference Include="Silk.NET.SDL" Version="2.22.0" />
 	</ItemGroup>
-
 	<ItemGroup>
-	  <None Update="LICENSE.txt">
-	    <Pack>True</Pack>
-	    <PackagePath>\</PackagePath>
-	  </None>
-	  <None Update="README.md">
-	    <Pack>True</Pack>
-	    <PackagePath>\</PackagePath>
-	  </None>
-	  <None Update="runtimes\win-x64\native\libmp3lame.64.dll">
-	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-	  </None>
-	  <!--<None Update="runtimes\win-x86\native\libmp3lame.32.dll">
-	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-	  </None>-->
+		<Content Update="C:\Users\chen7\.nuget\packages\naudio.lame.crossplatform\2.2.1\contentFiles\any\net8.0\libmp3lame.32.dll">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</Content>
+		<Content Update="C:\Users\chen7\.nuget\packages\naudio.lame.crossplatform\2.2.1\contentFiles\any\net8.0\libmp3lame.64.dll">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</Content>
 	</ItemGroup>
-
-
 </Project>

@@ -236,7 +236,7 @@ public class DeviceEnumerator : IMMNotificationClient
                 return null;
         }        
     }
-    public IWaveIn CreateCapture(AudioDevice? audioDevice = null)
+    public IWaveIn CreateCapture(AudioDevice audioDevice)
     {
         switch (audioDevice.DriverType)
         {
@@ -278,6 +278,10 @@ public class DeviceEnumerator : IMMNotificationClient
     public Action? RenderDeviceChangedAction;
     public List<AudioDevice> RenderDevice = new();
     public List<AudioDevice> CaptureDevice = new();
+    public List<AudioDevice> WasapiCaptureDevices = new();
+    public List<AudioDevice> WasapiRenderDevices = new();
+    public List<AudioDevice> ALSARenderDevice = new();
+    public List<AudioDevice> ALSACaptureDevice = new();
 }
 
 public class AudioDevice
