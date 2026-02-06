@@ -30,6 +30,7 @@ public class ALSACapture : IWaveIn
     private readonly int audioBufferMillisecondsLength;
     private BufferedWaveProvider bufferedWaveProvider;
     private CancellationTokenSource cancellationTokenSource;
+    WaveFormat sourceFormat;
     public WaveFormat WaveFormat
     {
         get; set;
@@ -56,7 +57,7 @@ public class ALSACapture : IWaveIn
 
             // Create the device and get the actual source format
             alsaDevice = new ALSAApi(settings);
-            
+            sourceFormat = alsaDevice.GetFormat(true);
             // Create wave provider for format conversion
             bufferedWaveProvider = new BufferedWaveProvider(WaveFormat);
 
