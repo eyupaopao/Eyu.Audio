@@ -23,11 +23,15 @@ public class SDLOut : IWavePlayer
         }
         if (device == null)
         {
-            device = DeviceEnumerator.Instance.RenderDevice.FirstOrDefault();
+            device = DeviceEnumerator.Instance.SdlRenderDevices.FirstOrDefault();
         }
         if (device == null)
         {
             throw new SdlException(SdlApi.NoOutputDevice);
+        }
+        if (device.DriverType != DriverType.Sdl)
+        {
+            throw new SdlException(SdlApi.ErrorDeviceTyep);
         }
         this.CurrentDevice = device;
         DeviceEnumerator.Instance.RenderDeviceChangedAction += SdlApi_RenderDeviceChanged;
@@ -39,15 +43,15 @@ public class SDLOut : IWavePlayer
     {
         if (CurrentDevice == null)
         {
-            CurrentDevice = DeviceEnumerator.Instance.RenderDevice.FirstOrDefault();
+            CurrentDevice = DeviceEnumerator.Instance.SdlRenderDevices.FirstOrDefault();
         }
-        else if (DeviceEnumerator.Instance.RenderDevice.Any(e => e.Device == CurrentDevice.Device))
+        else if (DeviceEnumerator.Instance.SdlRenderDevices.Any(e => e.Device == CurrentDevice.Device))
         {
             return;
         }
         else
         {
-            CurrentDevice = DeviceEnumerator.Instance.RenderDevice.FirstOrDefault();
+            CurrentDevice = DeviceEnumerator.Instance.SdlRenderDevices.FirstOrDefault();
         }
         if (CurrentDevice == null)
         {

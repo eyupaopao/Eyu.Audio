@@ -18,49 +18,30 @@ public enum DriverType
 }
 public class DeviceEnumerator : IMMNotificationClient
 {
-    public static DeviceEnumerator Instance = null!;
+    public static DeviceEnumerator Instance => _instance ??= new DeviceEnumerator();
 
+    private static DeviceEnumerator? _instance = null;
 
-    public static void CreateInstance(DriverType captureType = DriverType.Alsa, DriverType renderType = DriverType.Sdl)
-    {
-        if (Instance == null)
-        {
-            Instance = new DeviceEnumerator(captureType, renderType);
-        }
-    }
     ~DeviceEnumerator()
     {
         enumerator.Dispose();
     }
-
-    private DeviceEnumerator(DriverType captureType, DriverType renderType)
+    private DeviceEnumerator()
     {
-        _captureType = captureType;
-        _renderType = renderType;
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            if (_captureType == DriverType.Alsa)
-                _captureType = DriverType.Wasapi;
-            if (_renderType == DriverType.Alsa)
-                _renderType = DriverType.Wasapi;
-            if (_captureType == DriverType.Wasapi || _renderType == DriverType.Wasapi)
-                WindowsDeviceMonitor();
+            WindowsDeviceMonitor();
         }
-        if (_captureType == DriverType.Sdl || _renderType == DriverType.Sdl)
-            SdlApi.DeviceChangedAction += DeviceChanged;
-        if (_captureType == DriverType.Sdl)
-            CaptureDevice = SdlApi.GetDevices(1);
-        else if (_captureType == DriverType.Alsa)
-            CaptureDevice = AlsaDeviceEnumerator.GetDefaultCaptureDevice();
-        if (_renderType == DriverType.Sdl)
-            RenderDevice = SdlApi.GetDevices(0);
-        else if (_renderType == DriverType.Alsa)
-            RenderDevice = AlsaDeviceEnumerator.GetDefaultRenderDevice();
-
-        //SdlDeviceMonitor();
+        else
+        {
+            ALSACaptureDevices = AlsaDeviceEnumerator.GetDefaultCaptureDevice();
+            ALSARenderDevices = AlsaDeviceEnumerator.GetDefaultRenderDevice();
+        }
+        SdlApi.DeviceChangedAction += DeviceChanged;
+        SdlCaptureDevices = SdlApi.GetDevices(1);
+        SdlRenderDevices = SdlApi.GetDevices(0);
     }
-    public DriverType _captureType = DriverType.Wasapi;
-    public DriverType _renderType = DriverType.Wasapi;
+
     #region windows
     public void OnDefaultDeviceChanged(DataFlow flow, Role role, string defaultDeviceId)
     {
@@ -109,7 +90,7 @@ public class DeviceEnumerator : IMMNotificationClient
                 Name = item.FriendlyName,
                 DriverType = DriverType.Wasapi
             };
-            RenderDevice.Add(device);
+            WasapiRenderDevice.Add(device);
         }
         foreach (var item in enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active))
         {
@@ -121,7 +102,7 @@ public class DeviceEnumerator : IMMNotificationClient
                 Name = item.FriendlyName,
                 DriverType = DriverType.Wasapi
             };
-            CaptureDevice.Add(device);
+            WasapiCaptureDevice.Add(device);
         }
         enumerator.RegisterEndpointNotificationCallback(this);
     }
@@ -133,19 +114,19 @@ public class DeviceEnumerator : IMMNotificationClient
         var device = enumerator.GetDevice(id);
         if (device.DataFlow == DataFlow.Render)
         {
-            var renderDevice = RenderDevice.FirstOrDefault(d => d.Id == id);
+            var renderDevice = WasapiRenderDevice.FirstOrDefault(d => d.Id == id);
             if (renderDevice is not null)
             {
-                RenderDevice.Remove(renderDevice);
+                WasapiRenderDevice.Remove(renderDevice);
                 RenderDeviceChangedAction?.Invoke();
             }
         }
         else
         {
-            var captureDevice = CaptureDevice.FirstOrDefault(d => d.Id == id);
+            var captureDevice = WasapiCaptureDevice.FirstOrDefault(d => d.Id == id);
             if (captureDevice is not null)
             {
-                CaptureDevice.Remove(captureDevice);
+                WasapiCaptureDevice.Remove(captureDevice);
                 CaptureDeviceChangedAction?.Invoke();
             }
         }
@@ -164,7 +145,7 @@ public class DeviceEnumerator : IMMNotificationClient
                 IsCapture = false,
                 Name = device.FriendlyName
             };
-            RenderDevice.Add(renderDevice);
+            WasapiRenderDevice.Add(renderDevice);
             RenderDeviceChangedAction?.Invoke();
         }
         else
@@ -177,7 +158,7 @@ public class DeviceEnumerator : IMMNotificationClient
                 IsCapture = true,
                 Name = device.FriendlyName
             };
-            CaptureDevice.Add(captureDevice);
+            WasapiCaptureDevice.Add(captureDevice);
             CaptureDeviceChangedAction?.Invoke();
         }
     }
@@ -188,31 +169,26 @@ public class DeviceEnumerator : IMMNotificationClient
 
     private void DeviceChanged()
     {
-        if (_captureType == DriverType.Sdl)
+        var capture = SdlApi.GetDevices(1);
+        var except1 = SdlCaptureDevices.Except(capture).Any();
+        var except2 = capture.Except(WasapiCaptureDevice).Any();
+        if (except1 || except2)
         {
-            var capture = SdlApi.GetDevices(1);
-            var except1 = CaptureDevice.Except(capture).Any();
-            var except2 = capture.Except(CaptureDevice).Any();
-            if (except1 || except2)
-            {
-                CaptureDevice = capture;
-                CaptureDeviceChangedAction?.Invoke();
-            }
+            SdlCaptureDevices = capture;
+            CaptureDeviceChangedAction?.Invoke();
         }
-        if (_captureType == DriverType.Sdl)
+        var render = SdlApi.GetDevices(0);
+        var except3 = SdlRenderDevices.Except(render).Any();
+        var except4 = render.Except(WasapiRenderDevice).Any();
+        if (except3 || except4)
         {
-            var render = SdlApi.GetDevices(0);
-            var except3 = RenderDevice.Except(render).Any();
-            var except4 = render.Except(RenderDevice).Any();
-            if (except3 || except4)
-            {
-                RenderDevice = render;
-                RenderDeviceChangedAction?.Invoke();
-            }
+            SdlRenderDevices = render;
+            RenderDeviceChangedAction?.Invoke();
         }
     }
     #endregion
 
+    #region create 
     public IWavePlayer? CreatePlayer(AudioDevice? audioDevice = null)
     {
         if (audioDevice == null)
@@ -263,7 +239,7 @@ public class DeviceEnumerator : IMMNotificationClient
         {
             if (audioDevice == null || audioDevice.DriverType != DriverType.Wasapi)
             {
-                return new WasapiLoopbackCapture(WasapiLoopbackCapture.GetDefaultLoopbackCaptureDevice());                
+                return new WasapiLoopbackCapture(WasapiLoopbackCapture.GetDefaultLoopbackCaptureDevice());
             }
             var mmDevice = enumerator.GetDevice(audioDevice.Id);
             return new WasapiLoopbackCapture(mmDevice);
@@ -272,6 +248,7 @@ public class DeviceEnumerator : IMMNotificationClient
             return new PulseLoopbackCapture();
         throw new PlatformNotSupportedException("当前平台不支持环回采集");
     }
+
     [SupportedOSPlatform("Linux")]
     public IWaveIn CreateCaptureEchoCancel()
     {
@@ -290,19 +267,20 @@ public class DeviceEnumerator : IMMNotificationClient
                 throw new Exception($"Failed to initialize echo cancellation: {ex.Message}", ex);
             }
         }
-        var device = CaptureDevice.FirstOrDefault(a => a.Device != null && a.Device.Contains("Echo-Cancel"))
+        var device = WasapiCaptureDevice.FirstOrDefault(a => a.Device != null && a.Device.Contains("Echo-Cancel"))
             ?? throw new Exception("Not found echo cancel device");
         return new SDLCapture();
     }
+    #endregion
 
     public Action? CaptureDeviceChangedAction;
     public Action? RenderDeviceChangedAction;
-    public List<AudioDevice> RenderDevice = new();
-    public List<AudioDevice> CaptureDevice = new();
-    public List<AudioDevice> WasapiCaptureDevices = new();
-    public List<AudioDevice> WasapiRenderDevices = new();
-    public List<AudioDevice> ALSARenderDevice = new();
-    public List<AudioDevice> ALSACaptureDevice = new();
+    public List<AudioDevice> WasapiRenderDevice = new();
+    public List<AudioDevice> WasapiCaptureDevice = new();
+    public List<AudioDevice> SdlCaptureDevices = new();
+    public List<AudioDevice> SdlRenderDevices = new();
+    public List<AudioDevice> ALSARenderDevices = new();
+    public List<AudioDevice> ALSACaptureDevices = new();
 }
 
 public class AudioDevice

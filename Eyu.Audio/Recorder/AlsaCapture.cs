@@ -1,7 +1,9 @@
 ﻿using Eyu.Audio.Alsa;
 using Eyu.Audio.Provider;
+using Eyu.Audio.Utils;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
+using Silk.NET.SDL;
 using System;
 using System.IO;
 using System.Threading;
@@ -20,6 +22,10 @@ public class ALSACapture : IWaveIn
         {
             // Use default device if none specified
             device = new Utils.AudioDevice { Device = "default", IsCapture = true };
+        }
+        if (device.DriverType != DriverType.Alsa)
+        {
+            throw new SdlException(SdlApi.ErrorDeviceTyep);
         }
         this.audioDevice = device;
         this.audioBufferMillisecondsLength = audioBufferMillisecondsLength;

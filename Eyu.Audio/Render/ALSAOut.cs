@@ -3,6 +3,7 @@ using Eyu.Audio.Provider;
 using Eyu.Audio.Utils;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
+using Silk.NET.SDL;
 using System;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -20,11 +21,15 @@ public class ALSAOut : IWavePlayer
         }
         if (device == null)
         {
-            device = DeviceEnumerator.Instance.RenderDevice.FirstOrDefault(d => d.DriverType == DriverType.Alsa);
+            device = DeviceEnumerator.Instance.ALSARenderDevices.FirstOrDefault(d => d.DriverType == DriverType.Alsa);
         }
         if (device == null)
         {
             throw new AlsaDeviceException("No output device");
+        }
+        if (device.DriverType != DriverType.Alsa)
+        {
+            throw new SdlException(SdlApi.ErrorDeviceTyep);
         }
         this.CurrentDevice = device;
         DeviceEnumerator.Instance.RenderDeviceChangedAction += AlsaApi_RenderDeviceChanged;
@@ -37,15 +42,15 @@ public class ALSAOut : IWavePlayer
     {
         if (CurrentDevice == null)
         {
-            CurrentDevice = DeviceEnumerator.Instance.RenderDevice.FirstOrDefault(d => d.DriverType == DriverType.Alsa);
+            CurrentDevice = DeviceEnumerator.Instance.ALSARenderDevices.FirstOrDefault(d => d.DriverType == DriverType.Alsa);
         }
-        else if (DeviceEnumerator.Instance.RenderDevice.Any(e => e.Device == CurrentDevice.Device && e.DriverType == DriverType.Alsa))
+        else if (DeviceEnumerator.Instance.ALSARenderDevices.Any(e => e.Device == CurrentDevice.Device && e.DriverType == DriverType.Alsa))
         {
             return;
         }
         else
         {
-            CurrentDevice = DeviceEnumerator.Instance.RenderDevice.FirstOrDefault(d => d.DriverType == DriverType.Alsa);
+            CurrentDevice = DeviceEnumerator.Instance.ALSARenderDevices.FirstOrDefault(d => d.DriverType == DriverType.Alsa);
         }
         if (CurrentDevice == null)
         {

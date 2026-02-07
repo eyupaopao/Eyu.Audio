@@ -21,11 +21,15 @@ public unsafe class SDLCapture : IWaveIn
         }
         if (device == null)
         {
-            device = DeviceEnumerator.Instance.CaptureDevice.FirstOrDefault();
+            device = DeviceEnumerator.Instance.SdlCaptureDevices.FirstOrDefault();
         }
         if (device == null)
         {
             throw new SdlException(SdlApi.NoInputDevice);
+        }
+        if (device.DriverType != DriverType.Sdl)
+        {
+            throw new SdlException(SdlApi.ErrorDeviceTyep);
         }
         this.currentDevice = device;
         WaveFormat = new WaveFormat(8000, 16, 1);
@@ -36,15 +40,15 @@ public unsafe class SDLCapture : IWaveIn
     {
         if (currentDevice == null)
         {
-            currentDevice = DeviceEnumerator.Instance.CaptureDevice.FirstOrDefault();
+            currentDevice = DeviceEnumerator.Instance.SdlCaptureDevices.FirstOrDefault();
         }
-        else if (DeviceEnumerator.Instance.CaptureDevice.Any(e => e.Device == currentDevice.Device))
+        else if (DeviceEnumerator.Instance.SdlCaptureDevices.Any(e => e.Device == currentDevice.Device))
         {
             return;
         }
         else
         {
-            currentDevice = DeviceEnumerator.Instance.CaptureDevice.FirstOrDefault();
+            currentDevice = DeviceEnumerator.Instance.SdlCaptureDevices.FirstOrDefault();
         }
         if (currentDevice == null)
         {
@@ -85,7 +89,8 @@ public unsafe class SDLCapture : IWaveIn
 
     public unsafe void StartRecording()
     {
-        var audioSpec = new AudioSpec {
+        var audioSpec = new AudioSpec
+        {
             Freq = WaveFormat.SampleRate,
             Format = Sdl.AudioF32,
             Callback = new(AudioCallback),
@@ -160,6 +165,6 @@ public unsafe class SDLCapture : IWaveIn
         SdlApi.Api.CloseAudioDevice(_device);
         RecordingStopped?.Invoke(this, new StoppedEventArgs());
         _isRecording = false;
-        
+
     }
 }

@@ -26,19 +26,20 @@ public unsafe class SDLLoopbackCapture : IWaveIn
         if (device?.IsCapture == true)
         {
             throw new SdlException(SdlApi.ErrorDeviceTyep);
-        }
-        
+        }        
         if (device == null)
         {
             // Try to get the default playback device for loopback capture
-            device = DeviceEnumerator.Instance.RenderDevice.FirstOrDefault();
-        }
-        
+            device = DeviceEnumerator.Instance.SdlRenderDevices.FirstOrDefault();
+        }        
         if (device == null)
         {
             throw new SdlException(SdlApi.NoOutputDevice);
         }
-        
+        if (device.DriverType != DriverType.Sdl)
+        {
+            throw new SdlException(SdlApi.ErrorDeviceTyep);
+        }
         this._playbackDevice = device;
         WaveFormat = new WaveFormat(44100, 16, 2); // Default to 44.1kHz, 16-bit, stereo
         DeviceEnumerator.Instance.RenderDeviceChangedAction += this.OnRenderDeviceChanged;
@@ -49,9 +50,9 @@ public unsafe class SDLLoopbackCapture : IWaveIn
         if (_playbackDevice == null)
         {
             // If our device became null, try to get the first available playback device
-            _playbackDevice = DeviceEnumerator.Instance.RenderDevice.FirstOrDefault();
+            _playbackDevice = DeviceEnumerator.Instance.SdlRenderDevices.FirstOrDefault();
         }
-        else if (DeviceEnumerator.Instance.RenderDevice.Any(e => e.Device == _playbackDevice.Device))
+        else if (DeviceEnumerator.Instance.SdlRenderDevices.Any(e => e.Device == _playbackDevice.Device))
         {
             // Our device still exists, nothing to do
             return;
@@ -59,7 +60,7 @@ public unsafe class SDLLoopbackCapture : IWaveIn
         else
         {
             // Our device is gone, try to get the first available playback device
-            _playbackDevice = DeviceEnumerator.Instance.RenderDevice.FirstOrDefault();
+            _playbackDevice = DeviceEnumerator.Instance.SdlRenderDevices.FirstOrDefault();
         }
         
         if (_playbackDevice == null)
