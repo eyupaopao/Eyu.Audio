@@ -4,13 +4,8 @@ using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
 using Silk.NET.SDL;
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Reflection.PortableExecutable;
 using System.Runtime.InteropServices;
-using System.Text;
-using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 
 namespace Eyu.Audio;
 public class SDLOut : IWavePlayer

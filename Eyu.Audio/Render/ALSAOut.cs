@@ -3,7 +3,6 @@ using Eyu.Audio.Provider;
 using Eyu.Audio.Utils;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
-using Silk.NET.SDL;
 using System;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -29,7 +28,7 @@ public class ALSAOut : IWavePlayer
         }
         if (device.DriverType != DriverType.Alsa)
         {
-            throw new SdlException(SdlApi.ErrorDeviceTyep);
+            throw new AlsaDeviceException(SdlApi.ErrorDeviceTyep);
         }
         this.CurrentDevice = device;
         DeviceEnumerator.Instance.RenderDeviceChangedAction += AlsaApi_RenderDeviceChanged;
