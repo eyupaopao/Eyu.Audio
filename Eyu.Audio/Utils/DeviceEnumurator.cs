@@ -19,16 +19,16 @@ public enum DriverType
 public class DeviceEnumerator : IMMNotificationClient
 {
     public static DeviceEnumerator Instance = null!;
-   
+
 
     public static void CreateInstance(DriverType captureType = DriverType.Alsa, DriverType renderType = DriverType.Sdl)
     {
         if (Instance == null)
         {
-            if ( RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                if(captureType == DriverType.Alsa) captureType = DriverType.Wasapi;
-                if(renderType == DriverType.Alsa) renderType = DriverType.Wasapi;                
+                if (captureType == DriverType.Alsa) captureType = DriverType.Wasapi;
+                if (renderType == DriverType.Alsa) renderType = DriverType.Wasapi;
             }
             Instance = new DeviceEnumerator(captureType, renderType);
         }
@@ -43,24 +43,20 @@ public class DeviceEnumerator : IMMNotificationClient
 
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            captureType = DriverType.Wasapi;
-            renderType = DriverType.Wasapi;
-            WindowsDeviceMonitor();
-            return;
+            if (captureType == DriverType.Alsa) captureType = DriverType.Wasapi;
+            if (renderType == DriverType.Alsa) captureType = DriverType.Wasapi;
+            if (captureType == DriverType.Wasapi || renderType == DriverType.Wasapi) WindowsDeviceMonitor();
         }
-        else
-        {
-            if (captureType == DriverType.Sdl)
-                CaptureDevice = SdlApi.GetDevices(1);
-            else if (captureType == DriverType.Alsa)
-                CaptureDevice = AlsaDeviceEnumerator.GetDefaultCaptureDevice();
-            if (renderType == DriverType.Sdl)
-                RenderDevice = SdlApi.GetDevices(0);
-            else if (renderType == DriverType.Alsa)
-                RenderDevice = AlsaDeviceEnumerator.GetDefaultRenderDevice();
-            if (captureType == DriverType.Sdl || renderType == DriverType.Sdl)
-                SdlApi.DeviceChangedAction += DeviceChanged;
-        }
+        if (captureType == DriverType.Sdl || renderType == DriverType.Sdl)
+            SdlApi.DeviceChangedAction += DeviceChanged;
+        if (captureType == DriverType.Sdl)
+            CaptureDevice = SdlApi.GetDevices(1);
+        else if (captureType == DriverType.Alsa)
+            CaptureDevice = AlsaDeviceEnumerator.GetDefaultCaptureDevice();
+        if (renderType == DriverType.Sdl)
+            RenderDevice = SdlApi.GetDevices(0);
+        else if (renderType == DriverType.Alsa)
+            RenderDevice = AlsaDeviceEnumerator.GetDefaultRenderDevice();
 
         //SdlDeviceMonitor();
     }
@@ -100,11 +96,6 @@ public class DeviceEnumerator : IMMNotificationClient
         //OnPropertyValueChangedDelegate?.Invoke(pwstrDeviceId, key);
     }
 
-    //public Action<DataFlow, Role, string> OnDefaultDeviceChangedDelegate;
-    //public Action<string> OnDeviceAddedDelegate;
-    //public Action<string> OnDeviceRemovedDelegate;
-    //public Action<string, DeviceState> OnDeviceStateChangedDelegate;
-    //public Action<string, PropertyKey> OnPropertyValueChangedDelegate;
     private MMDeviceEnumerator enumerator = null!;
     private void WindowsDeviceMonitor()
     {
@@ -195,7 +186,7 @@ public class DeviceEnumerator : IMMNotificationClient
     #endregion
 
     #region sdl/linux
-    
+
     private void DeviceChanged()
     {
         if (captureType == DriverType.Sdl)
@@ -234,33 +225,43 @@ public class DeviceEnumerator : IMMNotificationClient
                 return new SDLOut(audioDevice);
             default:
                 return null;
-        }        
+        }
     }
     public IWaveIn CreateCapture(AudioDevice audioDevice)
     {
-        switch (audioDevice.DriverType)
+        if (audioDevice.IsCapture)
         {
-            case DriverType.Wasapi:
-                var mmDevice = enumerator.GetDevice(audioDevice.Id);
-                if (mmDevice.DataFlow == DataFlow.Render)
-                    return new WasapiLoopbackCapture(mmDevice);
-                return new WasapiCapture(mmDevice);
-            case DriverType.Sdl:
-                return new SDLCapture(audioDevice);
-            default:
-                return new ALSACapture(audioDevice);
+            switch (audioDevice.DriverType)
+            {
+                case DriverType.Wasapi:
+                    var mmDevice = enumerator.GetDevice(audioDevice.Id);
+                    return new WasapiCapture(mmDevice);
+                case DriverType.Sdl:
+                    return new SDLCapture(audioDevice);
+                default:
+                    return new ALSACapture(audioDevice);
+            }
+        }
+        else
+        {
+            return CreateLoopbackCapture(audioDevice);
         }
     }
 
     /// <summary>
     /// 创建环回采集（系统播放音频）。Windows 使用 WasapiLoopbackCapture，Linux 使用 PulseAudio/PipeWire monitor 源。
     /// </summary>
-    public IWaveIn CreateLoopbackCapture(string? monitorSourceName = null, int audioBufferMillisecondsLength = 100)
+    public IWaveIn CreateLoopbackCapture(AudioDevice? audioDevice = default)
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            return new LoopbackCapture();
+        {
+            if (audioDevice == null)
+                return new WasapiLoopbackCapture(WasapiLoopbackCapture.GetDefaultLoopbackCaptureDevice());
+            var mmDevice = enumerator.GetDevice(audioDevice.Id);
+            return new WasapiLoopbackCapture(mmDevice);
+        }
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return new PulseLoopbackCapture(monitorSourceName, audioBufferMillisecondsLength);
+            return new PulseLoopbackCapture(audioDevice?.Device);
         throw new PlatformNotSupportedException("当前平台不支持环回采集");
     }
     [SupportedOSPlatform("Linux")]
@@ -304,5 +305,5 @@ public class AudioDevice
     public bool IsCapture { get; set; }
     public string? Name { get; set; }
     public string? Device { get; set; }
-    public DriverType DriverType{ get; set; }
+    public DriverType DriverType { get; set; }
 }
