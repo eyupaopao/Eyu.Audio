@@ -143,20 +143,31 @@ public class PulseLoopbackCapture : IWaveIn
 
         _isRecording = true;
         _cts = new CancellationTokenSource();
-        int bufferSize = Math.Max(1024, (int)((_audioBufferMillisecondsLength / 1000.0) * wf.AverageBytesPerSecond));
+        // 读取更频繁：小块读取，减少延迟累积
+        int readChunkSize = 512;
+        int outputChunkBytes = Math.Max(1024, (int)((_audioBufferMillisecondsLength / 1000.0) * wf.AverageBytesPerSecond));
+        var bufferedProvider = new BufferedWaveProvider(wf) { DiscardOnBufferOverflow = true };
         Stream stdout = _parecordProcess.StandardOutput.BaseStream;
 
         _readTask = Task.Run(() =>
         {
-            byte[] buffer = new byte[bufferSize];
+            byte[] readBuffer = new byte[readChunkSize];
+            byte[] outputBuffer = new byte[outputChunkBytes];
             try
             {
                 while (_isRecording && _parecordProcess != null && !_parecordProcess.HasExited && !_cts!.Token.IsCancellationRequested)
                 {
-                    int read = stdout.Read(buffer, 0, buffer.Length);
+                    int read = stdout.Read(readBuffer, 0, readBuffer.Length);
                     if (read <= 0)
                         break;
-                    DataAvailable?.Invoke(this, new WaveInEventArgs(buffer, read));
+                    bufferedProvider.AddSamples(readBuffer, 0, read);
+                    // 攒够再回调，减少网络发包频率，缓解卡顿
+                    while (bufferedProvider.BufferedBytes >= outputChunkBytes)
+                    {
+                        int got = bufferedProvider.Read(outputBuffer, 0, outputChunkBytes);
+                        if (got > 0)
+                            DataAvailable?.Invoke(this, new WaveInEventArgs(outputBuffer, got));
+                    }
                 }
             }
             catch (OperationCanceledException) { }

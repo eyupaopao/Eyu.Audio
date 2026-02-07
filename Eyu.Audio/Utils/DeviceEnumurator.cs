@@ -227,11 +227,11 @@ public class DeviceEnumerator : IMMNotificationClient
                 return null;
         }
     }
-    public IWaveIn CreateCapture(AudioDevice? audioDevice)
+    public IWaveIn CreateCapture(AudioDevice audioDevice)
     {
         if (audioDevice.IsCapture)
         {
-            switch (audioDevice.DriverType)
+            switch (audioDevice?.DriverType)
             {
                 case DriverType.Wasapi:
                     var mmDevice = enumerator.GetDevice(audioDevice.Id);
