@@ -25,11 +25,6 @@ public class DeviceEnumerator : IMMNotificationClient
     {
         if (Instance == null)
         {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                if (captureType == DriverType.Alsa) captureType = DriverType.Wasapi;
-                if (renderType == DriverType.Alsa) renderType = DriverType.Wasapi;
-            }
             Instance = new DeviceEnumerator(captureType, renderType);
         }
     }
@@ -40,28 +35,32 @@ public class DeviceEnumerator : IMMNotificationClient
 
     private DeviceEnumerator(DriverType captureType, DriverType renderType)
     {
-
+        _captureType = captureType;
+        _renderType = renderType;
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            if (captureType == DriverType.Alsa) captureType = DriverType.Wasapi;
-            if (renderType == DriverType.Alsa) captureType = DriverType.Wasapi;
-            if (captureType == DriverType.Wasapi || renderType == DriverType.Wasapi) WindowsDeviceMonitor();
+            if (_captureType == DriverType.Alsa)
+                _captureType = DriverType.Wasapi;
+            if (_renderType == DriverType.Alsa)
+                _renderType = DriverType.Wasapi;
+            if (_captureType == DriverType.Wasapi || _renderType == DriverType.Wasapi)
+                WindowsDeviceMonitor();
         }
-        if (captureType == DriverType.Sdl || renderType == DriverType.Sdl)
+        if (_captureType == DriverType.Sdl || _renderType == DriverType.Sdl)
             SdlApi.DeviceChangedAction += DeviceChanged;
-        if (captureType == DriverType.Sdl)
+        if (_captureType == DriverType.Sdl)
             CaptureDevice = SdlApi.GetDevices(1);
-        else if (captureType == DriverType.Alsa)
+        else if (_captureType == DriverType.Alsa)
             CaptureDevice = AlsaDeviceEnumerator.GetDefaultCaptureDevice();
-        if (renderType == DriverType.Sdl)
+        if (_renderType == DriverType.Sdl)
             RenderDevice = SdlApi.GetDevices(0);
-        else if (renderType == DriverType.Alsa)
+        else if (_renderType == DriverType.Alsa)
             RenderDevice = AlsaDeviceEnumerator.GetDefaultRenderDevice();
 
         //SdlDeviceMonitor();
     }
-    public DriverType captureType = DriverType.Wasapi;
-    public DriverType renderType = DriverType.Wasapi;
+    public DriverType _captureType = DriverType.Wasapi;
+    public DriverType _renderType = DriverType.Wasapi;
     #region windows
     public void OnDefaultDeviceChanged(DataFlow flow, Role role, string defaultDeviceId)
     {
@@ -189,7 +188,7 @@ public class DeviceEnumerator : IMMNotificationClient
 
     private void DeviceChanged()
     {
-        if (captureType == DriverType.Sdl)
+        if (_captureType == DriverType.Sdl)
         {
             var capture = SdlApi.GetDevices(1);
             var except1 = CaptureDevice.Except(capture).Any();
@@ -200,7 +199,7 @@ public class DeviceEnumerator : IMMNotificationClient
                 CaptureDeviceChangedAction?.Invoke();
             }
         }
-        if (captureType == DriverType.Sdl)
+        if (_captureType == DriverType.Sdl)
         {
             var render = SdlApi.GetDevices(0);
             var except3 = RenderDevice.Except(render).Any();
@@ -214,21 +213,28 @@ public class DeviceEnumerator : IMMNotificationClient
     }
     #endregion
 
-    public IWavePlayer CreatePlayer(AudioDevice audioDevice)
+    public IWavePlayer? CreatePlayer(AudioDevice? audioDevice = null)
     {
-        switch (audioDevice.DriverType)
+        if (audioDevice == null)
         {
-            case DriverType.Wasapi:
+            return null;
+        }
+        else
+        {
+            if (audioDevice.DriverType == DriverType.Sdl)
+                return new SDLOut(audioDevice);
+            else if (audioDevice.DriverType == DriverType.Wasapi || RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
                 var mmDevice = enumerator.GetDevice(audioDevice.Id);
                 return new WasapiOut(mmDevice, AudioClientShareMode.Shared, useEventSync: true, 100);
-            case DriverType.Sdl:
+            }
+            else
                 return new SDLOut(audioDevice);
-            default:
-                return null;
         }
     }
-    public IWaveIn CreateCapture(AudioDevice audioDevice)
+    public IWaveIn CreateCapture(AudioDevice? audioDevice)
     {
+
         if (audioDevice.IsCapture)
         {
             switch (audioDevice?.DriverType)
@@ -255,8 +261,10 @@ public class DeviceEnumerator : IMMNotificationClient
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            if (audioDevice == null)
-                return new WasapiLoopbackCapture(WasapiLoopbackCapture.GetDefaultLoopbackCaptureDevice());
+            if (audioDevice == null || audioDevice.DriverType != DriverType.Wasapi)
+            {
+                return new WasapiLoopbackCapture(WasapiLoopbackCapture.GetDefaultLoopbackCaptureDevice());                
+            }
             var mmDevice = enumerator.GetDevice(audioDevice.Id);
             return new WasapiLoopbackCapture(mmDevice);
         }
