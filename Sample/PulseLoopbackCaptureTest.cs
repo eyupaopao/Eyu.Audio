@@ -50,10 +50,10 @@ public static class PulseLoopbackCaptureTest
                     Console.WriteLine("采集已停止。");
             };
 
-            Console.WriteLine("开始环回采集，约 10 秒后自动停止（或按回车提前停止）...");
+            Console.WriteLine("开始环回采集，约 20 秒后自动停止（或按回车提前停止）...");
             capture.StartRecording();
 
-            for (int i = 0; i < 10; i++)
+            for (int i = 0; i < 20; i++)
             {
                 if (Console.KeyAvailable)
                 {
@@ -63,7 +63,7 @@ public static class PulseLoopbackCaptureTest
                 Thread.Sleep(1000);
                 int bytes = Volatile.Read(ref totalBytes);
                 int chunks = Volatile.Read(ref chunkCount);
-                Console.WriteLine($"  {10 - i} 秒... 已采集 {bytes} 字节（{chunks} 次回调）");
+                Console.WriteLine($"  {20 - i} 秒... 已采集 {bytes} 字节（{chunks} 次回调）");
             }
 
             capture.StopRecording();
@@ -111,15 +111,15 @@ public static class PulseLoopbackCaptureTest
                     Console.WriteLine($"采集停止（异常）: {e.Exception.Message}");
             };
 
-            Console.WriteLine($"开始环回采集并写入 {fileName}，约 8 秒...");
+            Console.WriteLine($"开始环回采集并写入 {fileName}，约 20 秒...");
             capture.StartRecording();
 
-            for (int i = 0; i < 8; i++)
+            for (int i = 0; i < 20; i++)
             {
                 if (Console.KeyAvailable) { Console.ReadKey(true); break; }
                 Thread.Sleep(1000);
                 int bytes = Volatile.Read(ref totalBytes);
-                Console.WriteLine($"  {8 - i} 秒... 已采集 {bytes} 字节");
+                Console.WriteLine($"  {20 - i} 秒... 已采集 {bytes} 字节");
             }
 
             capture.StopRecording();

@@ -129,6 +129,13 @@ namespace Sample
                 {
                     Console.WriteLine($"  - {device.Device}: {device.Name}");
                 }
+
+                var renderDevices = AlsaDeviceEnumerator.GetRenderDevices();
+                Console.WriteLine($"\nFound {renderDevices.Count} render devices:");
+                 foreach (var device in renderDevices)
+                {
+                    Console.WriteLine($"  - {device.Device}: {device.Name}");
+                }
             }
             catch (Exception ex)
             {

@@ -13,15 +13,11 @@ using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 
-// Uncomment the test you want to run
-// TestAes67();
-// TestAlsaCapture();
-// TestAlsaCaptureToFile();
-// ListAlsaDevices();
-// TestAlsaCaptureWithDevice("default");
-// TestPulseLoopbackCapture();        // Linux: 环回采集（系统播放）测试
-// TestPulseLoopbackCaptureToFile();  // Linux: 环回采集并保存为 WAV
 
+
+    TestPulseLoopbackCaptureToFile();
+
+    // TestPulseLoopbackCaptureToFile();  // Linux: 默认运行环回采集测试，可改为 TestPulseLoopbackCaptureToFile() 保存 WAV
 static void TestAlsaCapture()
 {
     AlsaCaptureTest.TestAlsaCapture();
@@ -55,32 +51,6 @@ static void TestPulseLoopbackCaptureToFile()
     PulseLoopbackCaptureTest.TestPulseLoopbackCaptureToFile();
 }
 
-
-//TestAes67();
-//PulseCapture.OpenCancel();
-//var device = PulseCapture.GetDevices();
-//if (device.Count() == 0)
-//{
-//    Console.WriteLine("no device");
-//    return;
-//}
-//await SdlIn(args);
-// var pa = new PulseCapture(device.First(d => d.Name == "echocancel"));
-// pa.DataAvailable += Pa_DataAvailable;
-// pa.StartRecording();
-// Console.ReadLine();
-// pa.StopRecording();
-
-// void Pa_DataAvailable(object? sender, WaveInEventArgs e)
-// {
-//     Console.WriteLine($"capture {e.BytesRecorded} bytes");
-// }
-
-// List ALSA devices（非 Linux 时运行）
-if (!System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Linux))
-    ListAlsaDevices();
-else
-    TestPulseLoopbackCapture();  // Linux: 默认运行环回采集测试，可改为 TestPulseLoopbackCaptureToFile() 保存 WAV
 
 static void SdlOut(string[] args)
 {

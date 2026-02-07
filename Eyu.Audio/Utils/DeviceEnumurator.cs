@@ -227,7 +227,7 @@ public class DeviceEnumerator : IMMNotificationClient
                 return null;
         }
     }
-    public IWaveIn CreateCapture(AudioDevice audioDevice)
+    public IWaveIn CreateCapture(AudioDevice? audioDevice)
     {
         if (audioDevice.IsCapture)
         {
@@ -261,7 +261,7 @@ public class DeviceEnumerator : IMMNotificationClient
             return new WasapiLoopbackCapture(mmDevice);
         }
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return new PulseLoopbackCapture(audioDevice?.Device);
+            return new PulseLoopbackCapture();
         throw new PlatformNotSupportedException("当前平台不支持环回采集");
     }
     [SupportedOSPlatform("Linux")]
