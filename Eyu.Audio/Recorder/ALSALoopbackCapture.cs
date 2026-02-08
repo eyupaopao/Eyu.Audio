@@ -1,8 +1,7 @@
 using Eyu.Audio.Alsa;
-using Eyu.Audio.Provider;
-using Eyu.Audio.Utils;
 using NAudio.Wave;
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Eyu.Audio;
