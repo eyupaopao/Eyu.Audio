@@ -25,5 +25,6 @@ public static class Aes67Const
     /// AES67要求支持的采样率: 44.1kHz, 48kHz, 88.2kHz, 96kHz, 176.4kHz, 192kHz
     /// </summary>
     public static int[] SupportedSampleRates = [44100, 48000, 88200, 96000, 176400, 192000];
+    public static int[] SupportedBitsPerSample = [16,24,32];
     public static uint[] SupportedPTimeμs = [125, 250, 333, 1000, 4000];
 }

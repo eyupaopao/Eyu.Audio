@@ -27,6 +27,7 @@ public class Aes67ChannelManager
     private HighPrecisionTimer? highPrecisionTimer;
     private event Action? timmerTick;
     public static Aes67ChannelManager Instance = null!;
+    public uint PTimeμs { get; private set; } = Aes67Const.DefaultPTimeμs;
     public static void Start(params IPAddress[] localAddress)
     {
         Instance = new Aes67ChannelManager(localAddress);
@@ -178,9 +179,15 @@ public class Aes67ChannelManager
                 }
             }
         }
-        Aes67Const.DefaultPTimeμs = pTimeμs;
+        PTimeμs = pTimeμs;
     }
     public void SetDefaultBitsPerSample(int bitsPerSample)
+    {
+        if (!Aes67Const.SupportedBitsPerSample.Contains(bitsPerSample))
+            throw new NotSupportedException("不支持的位深");
+        Aes67Const.DefaultBitsPerSample = bitsPerSample;
+    }
+    public void SetDefaultSampleRate(int bitsPerSample)
     {
         if (!Aes67Const.SupportedSampleRates.Contains(bitsPerSample))
             throw new NotSupportedException("不支持的采样率");
@@ -273,7 +280,7 @@ public class Aes67ChannelManager
         {
             highPrecisionTimer = new(HandleAes67BroadCast);
             // 设置定时器周期为默认的包间隔时间的1/10（单位：ms）
-            highPrecisionTimer.SetPeriod(Aes67Const.DefaultPTimeμs / 10000f);
+            highPrecisionTimer.SetPeriod(PTimeμs / 10000f);
             highPrecisionTimer.Start();
         }
         if (!_channels.Contains(channel))
