@@ -15,7 +15,7 @@ public static class Aes67Const
     public const int Aes67MuticastPort = 5004;
     public const string Deletion = "Deletion";
     public const string Announcement = "Announcement";
-    public static uint DefaultPTimeμs = 250;
+    public const uint DefaultPTimeμs = 250;
     public static string DefaultEncoding => $"L{DefaultBitsPerSample}";
     public static int DefaultBitsPerSample = 24;
     public static int DefaultChannels = 2;
