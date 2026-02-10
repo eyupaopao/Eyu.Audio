@@ -169,7 +169,7 @@ static void TestAes67FileBroadcast()
     var localIp = IPAddress.Parse(addrs[idx - 1]);
     Console.WriteLine("输入音频文件路径（或回车使用默认 test.wav）：");
     var path = Console.ReadLine()?.Trim();
-    if (string.IsNullOrEmpty(path)) path = @"D:\User\Music\蔡依林\蔡依林 - 单身公害.mp3";
+    if (string.IsNullOrEmpty(path)) path = @"D:\User\Music\蔡琴-被遗忘的时光.mp3";
     Aes67FileBroadcastTest.BroadcastFromFile(path, "Eyu.Audio File Broadcast", localIp, durationSeconds: 0);
 }
 

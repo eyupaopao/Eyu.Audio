@@ -96,7 +96,7 @@ public class PcmToRtpConverter
         Ssrc = ssrc;
         _pTPClient = pTPClient;
         // 计算包间隔时间(纳秒)
-        _packetInterval = new PTPTimestamp((ulong)((double)samplesPerPacket / sampleRate * 1e9));
+        _packetInterval = new PTPTimestamp((ulong)((double)samplesPerPacket / sampleRate * 1e9d ));
         Initialize();
     }
 

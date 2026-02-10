@@ -540,7 +540,7 @@ public class Sdp
         return SapMessage + " " + SapPayloadType + "\r\n" + SdpString;
     }
 
-    internal void SetInfo(string info)
+    internal void SetTitle(string info)
     {
         Info = info;
         BuildSdpBytes();

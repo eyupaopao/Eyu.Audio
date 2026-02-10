@@ -23,6 +23,12 @@ public class Aes67Channel : IDisposable
     private readonly Dictionary<IPAddress, UdpClient> _udpClients = new();
     private readonly PcmToRtpConverter _rtpConverter;
     public readonly IPEndPoint MulticastEndpoint;
+    Channel<byte[]> _packets = Channel.CreateUnbounded<byte[]>();
+    private int bytesPerPacket;
+    byte[]? currentPacket = null!;
+    public int GetPackageCount() {
+        return _packets.Reader.Count;
+    }
     private WaveFormat _inputWaveFormat = null!;
     public WaveFormat OutputWaveFormat { get; set; }
     public uint PTimμs { get; }
@@ -41,7 +47,7 @@ public class Aes67Channel : IDisposable
     /// 构造AES67广播发送器
     /// </summary>
     /// <param mediaName="sdp">SDP会话描述</param>
-    public Aes67Channel(uint sessId, List<IPAddress> localAddresses, IPAddress muticastAddress, int muticastPort, string name, uint pTimeμs = Aes67Const.DefaultPTimeμs, string? info = null)
+    public Aes67Channel(uint sessId, List<IPAddress> localAddresses, IPAddress muticastAddress, int muticastPort, string name, uint pTimeμs = Aes67Const.DefaultPTimeμs, string? title = null)
     {
         PTimμs = pTimeμs;
         // 强制统一输出格式。
@@ -63,7 +69,7 @@ public class Aes67Channel : IDisposable
                        OutputWaveFormat.SampleRate,
                        OutputWaveFormat.Channels,
                        0,
-                       info);
+                       title);
             ValidateAes67Parameters(sdp);
             var udpClient = new UdpClient(new IPEndPoint(address, 0));
             udpClient.Ttl = 16;
@@ -84,18 +90,18 @@ public class Aes67Channel : IDisposable
         );
     }
 
-    internal void Init(WaveFormat inputWaveFormat, string name)
+    internal void Init(WaveFormat inputWaveFormat, string title)
     {
         if (_inputWaveFormat == null || !_inputWaveFormat.Equals(inputWaveFormat))
         {
             _inputWaveFormat = inputWaveFormat;
             BuildProvider();
         }
-        if (!string.IsNullOrEmpty(name))
+        if (!string.IsNullOrEmpty(title))
         {
             foreach (var sdp in Sdps.Values)
             {
-                sdp.SetInfo(name);
+                sdp.SetTitle(title);
             }
         }
         _rtpConverter.Initialize();
@@ -179,7 +185,7 @@ public class Aes67Channel : IDisposable
         if (string.IsNullOrEmpty(mediaName)) return;
         foreach (var sdp in Sdps.Values)
         {
-            sdp.SetInfo(mediaName);
+            sdp.SetTitle(mediaName);
         }
     }
     void buildFrames()
@@ -211,9 +217,6 @@ public class Aes67Channel : IDisposable
         }
     }
 
-    Channel<byte[]> _packets = Channel.CreateUnbounded<byte[]>();
-    private int bytesPerPacket;
-    byte[]? currentPacket = null!;
     private void SendSdp(bool deletion = false)
     {
         foreach (var address in _udpClients.Keys)
@@ -233,38 +236,38 @@ public class Aes67Channel : IDisposable
                 _sendFrameCount = 0;
                 SendSdp();
             }
-            var flag = _packets.Reader.TryRead(out var packet);
-            if (flag && packet != null && packet.Length > 0)
-            {
-                var rtpFrame = _rtpConverter.BuildRtpPacket(packet, 0, packet.Length);
-                if (rtpFrame == null) return;
-                foreach (var address in _udpClients.Keys)
-                {
-                    _udpClients[address].SendAsync(rtpFrame, MulticastEndpoint);
-                }
-                _sendFrameCount++;
-            }
-            // 从转换器获取RTP包并发送
-            //if (currentPacket == null)
+            //var flag = _packets.Reader.TryRead(out var packet);
+            //if (flag && packet != null && packet.Length > 0)
             //{
-            //    var flag = _packets.Reader.TryRead(out var packet);
-            //    if (flag && packet != null && packet.Length > 0)
-            //    {
-            //        currentPacket = packet;
-            //    }
-            //}
-            //if (currentPacket != null)
-            //{
-            //    if (!_rtpConverter.EnsureTime()) return;
-            //    var rtpFrame = _rtpConverter.BuildRtpPacket(currentPacket, 0, currentPacket.Length);
+            //    var rtpFrame = _rtpConverter.BuildRtpPacket(packet, 0, packet.Length);
             //    if (rtpFrame == null) return;
-            //    currentPacket = null;
             //    foreach (var address in _udpClients.Keys)
             //    {
             //        _udpClients[address].SendAsync(rtpFrame, MulticastEndpoint);
             //    }
             //    _sendFrameCount++;
             //}
+            // 从转换器获取RTP包并发送
+            if (currentPacket == null)
+            {
+                var flag = _packets.Reader.TryRead(out var packet);
+                if (flag && packet != null && packet.Length > 0)
+                {
+                    currentPacket = packet;
+                }
+            }
+            if (currentPacket != null)
+            {
+                if (!_rtpConverter.EnsureTime()) return;
+                var rtpFrame = _rtpConverter.BuildRtpPacket(currentPacket, 0, currentPacket.Length);
+                if (rtpFrame == null) return;
+                currentPacket = null;
+                foreach (var address in _udpClients.Keys)
+                {
+                    _udpClients[address].SendAsync(rtpFrame, MulticastEndpoint);
+                }
+                _sendFrameCount++;
+            }
         }
         catch (Exception ex)
         {

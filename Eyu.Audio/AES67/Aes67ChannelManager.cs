@@ -1,4 +1,4 @@
-﻿using Eyu.Audio.Provider;
+using Eyu.Audio.Provider;
 using Eyu.Audio.PTP;
 using Eyu.Audio.Timer;
 using NAudio.Wave;
@@ -280,7 +280,7 @@ public class Aes67ChannelManager
         {
             highPrecisionTimer = new(HandleAes67BroadCast);
             // 设置定时器周期为默认的包间隔时间的1/10（单位：ms）
-            highPrecisionTimer.SetPeriod(PTimeμs / 10000f);
+            highPrecisionTimer.SetPeriod(PTimeμs / 100000f);
             highPrecisionTimer.Start();
         }
         if (!_channels.Contains(channel))

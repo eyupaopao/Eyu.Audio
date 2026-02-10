@@ -23,7 +23,7 @@ public static class Aes67FileBroadcastTest
     /// <param name="durationSeconds">广播时长（秒），≤0 表示播完文件后继续等待 5 秒再结束</param>
     public static void BroadcastFromFile(
         string audioFilePath,
-        string broadcastName = "Eyu.Audio AES67 File Broadcast",
+        string broadcastName = "11",
         IPAddress? localAddress = null,
         int durationSeconds = 0)
     {
@@ -58,7 +58,7 @@ public static class Aes67FileBroadcastTest
         try
         {
             var manager = Aes67ChannelManager.Instance;
-            manager.SetDefaultDefaultPTimeμs(1000);
+            //manager.SetDefaultDefaultPTimeμs(4000);
             var channel = manager.CreateMulticastcastChannel(broadcastName);
             manager.Init(channel, waveFormat, broadcastName);
 
