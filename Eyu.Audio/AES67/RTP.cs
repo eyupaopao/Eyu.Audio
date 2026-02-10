@@ -1,4 +1,4 @@
-﻿using Eyu.Audio.PTP;
+using Eyu.Audio.PTP;
 using NAudio.Wave;
 using System;
 using System.Linq;
@@ -119,6 +119,12 @@ public class PcmToRtpConverter
     public bool EnsureTime()
     {
         var currentTime = _pTPClient.Timestamp;
+        // PTP 刚同步时时钟可能回退，导致 currentTime < _lastPacketTime，会一直发不出去。此时按“时钟回退”处理，重置上次发包时间。
+        if (currentTime < _lastPacketTime)
+        {
+            _lastPacketTime = currentTime - _packetInterval;
+            _lastSyncTime = currentTime;
+        }
         if (currentTime < _lastPacketTime + _packetInterval)
         {
             // 时间未到，不生成包
@@ -185,8 +191,22 @@ public class PcmToRtpConverter
         byte[] ssrcBytes = BitConverter.GetBytes(NetworkByteOrder(Ssrc));
         ssrcBytes.CopyTo(rtpPacket, 8);
 
-        // 负载数据
-        Array.Copy(payload, offset, rtpPacket, 12, count);
+        // 负载数据：AES67/RFC 要求 L24 为网络字节序（大端），NAudio 输出为小端，需按样本翻转
+        if (_bitsPerSample == 24)
+        {
+            int dst = 12;
+            for (int i = 0; i < count; i += 3)
+            {
+                int src = offset + i;
+                rtpPacket[dst++] = payload[src + 2];
+                rtpPacket[dst++] = payload[src + 1];
+                rtpPacket[dst++] = payload[src];
+            }
+        }
+        else
+        {
+            Array.Copy(payload, offset, rtpPacket, 12, count);
+        }
 
         return rtpPacket;
     }

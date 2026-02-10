@@ -15,7 +15,7 @@ using System.Net.Sockets;
 
 
 
-    TestPulseLoopbackCaptureToFile();
+    TestAes67FileBroadcast();
 
     // TestPulseLoopbackCaptureToFile();  // Linux: 默认运行环回采集测试，可改为 TestPulseLoopbackCaptureToFile() 保存 WAV
 static void TestAlsaCapture()
@@ -143,6 +143,34 @@ static void TestAes67()
         //Aes67ChannelManager aes67Manager = new Aes67ChannelManager(address);
         Console.ReadLine();
     }
+}
+
+/// <summary>
+/// 使用 AudioFileReader 读取音频文件，通过 Aes67ChannelManager/Aes67Channel 广播 PCM（定时器为 HighPrecisionTimer）。
+/// 运行后选择本机 IP，再输入音频文件路径即可。
+/// </summary>
+static void TestAes67FileBroadcast()
+{
+    var addrs = Aes67FileBroadcastTest.GetLocalIPv4List();
+    if (addrs.Count == 0)
+    {
+        Console.WriteLine("未找到本机 IPv4 地址。");
+        return;
+    }
+    int i = 1;
+    foreach (var a in addrs)
+        Console.WriteLine($"{i++}: {a}");
+    Console.WriteLine("输入序号选择本机 IP：");
+    if (!int.TryParse(Console.ReadLine(), out int idx) || idx < 1 || idx > addrs.Count)
+    {
+        Console.WriteLine("无效输入，使用第一个地址。");
+        idx = 1;
+    }
+    var localIp = IPAddress.Parse(addrs[idx - 1]);
+    Console.WriteLine("输入音频文件路径（或回车使用默认 test.wav）：");
+    var path = Console.ReadLine()?.Trim();
+    if (string.IsNullOrEmpty(path)) path = @"D:\User\Music\蔡依林\蔡依林 - 单身公害.mp3";
+    Aes67FileBroadcastTest.BroadcastFromFile(path, "Eyu.Audio File Broadcast", localIp, durationSeconds: 0);
 }
 
 static List<string> GetNetWorkInfo()

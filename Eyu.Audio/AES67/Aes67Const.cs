@@ -19,7 +19,7 @@ public static class Aes67Const
     public static string DefaultEncoding => $"L{DefaultBitsPerSample}";
     public static int DefaultBitsPerSample = 24;
     public static int DefaultChannels = 2;
-    public static int DefaultSampleRate = 48000;
+    public static int DefaultSampleRate = 44100;
     public static int DefaultPayloadType = 96;
     /// <summary>
     /// AES67要求支持的采样率: 44.1kHz, 48kHz, 88.2kHz, 96kHz, 176.4kHz, 192kHz

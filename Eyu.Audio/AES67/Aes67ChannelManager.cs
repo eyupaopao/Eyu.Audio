@@ -71,7 +71,7 @@ public class Aes67ChannelManager
             {
                 if (devId == null)
                     yield return item;
-                else if(item.DevId == devId) yield return item;                     
+                else if (item.DevId == devId) yield return item;
             }
         }
     }
@@ -270,7 +270,7 @@ public class Aes67ChannelManager
             GetUseAbleMcastAddress(),
             Aes67Const.Aes67MuticastPort,
             name,
-            null);
+            PTimeμs);
         return channel;
     }
     public void Init(Aes67Channel channel, WaveFormat waveFormat, string name = "")
