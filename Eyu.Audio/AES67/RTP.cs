@@ -75,7 +75,7 @@ public class PcmToRtpConverter
     private PTPTimestamp _lastPacketTime;
 
     // 计算出的包间隔时间(纳秒)
-    private readonly PTPTimestamp _packetInterval;
+    private PTPTimestamp _packetInterval;
 
 
     /// <summary>
@@ -96,7 +96,7 @@ public class PcmToRtpConverter
         Ssrc = ssrc;
         _pTPClient = pTPClient;
         // 计算包间隔时间(纳秒)
-        _packetInterval = new PTPTimestamp((ulong)((double)samplesPerPacket / sampleRate * 1e9d ));
+        _packetInterval = new PTPTimestamp((ulong)((double)samplesPerPacket / sampleRate * 1e9d * 0.98));
         Initialize();
     }
 
@@ -141,6 +141,7 @@ public class PcmToRtpConverter
     public byte[] BuildRtpPacket(byte[] payload, int offset, int count)
     {
 
+        _packetInterval = new PTPTimestamp((ulong)((double)_samplesPerPacket / _sampleRate * 1e9d * 0.992));
         var currentTime = _pTPClient.Timestamp;
         if (payload.Length - offset < count)
         {
@@ -190,24 +191,7 @@ public class PcmToRtpConverter
         // SSRC (4字节)
         byte[] ssrcBytes = BitConverter.GetBytes(NetworkByteOrder(Ssrc));
         ssrcBytes.CopyTo(rtpPacket, 8);
-
-        // 负载数据：AES67/RFC 要求 L24 为网络字节序（大端），NAudio 输出为小端，需按样本翻转
-        if (_bitsPerSample == 24)
-        {
-            int dst = 12;
-            for (int i = 0; i < count; i += 3)
-            {
-                int src = offset + i;
-                rtpPacket[dst++] = payload[src + 2];
-                rtpPacket[dst++] = payload[src + 1];
-                rtpPacket[dst++] = payload[src];
-            }
-        }
-        else
-        {
-            Array.Copy(payload, offset, rtpPacket, 12, count);
-        }
-
+        Array.Copy(payload, offset, rtpPacket, 12, count);
         return rtpPacket;
     }
 

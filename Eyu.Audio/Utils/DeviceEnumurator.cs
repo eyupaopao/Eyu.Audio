@@ -208,9 +208,9 @@ public class DeviceEnumerator : IMMNotificationClient
                 return new SDLOut(audioDevice);
         }
     }
-    public IWaveIn CreateCapture(AudioDevice? audioDevice)
+    public IWaveIn? CreateCapture(AudioDevice? audioDevice)
     {
-
+        if (audioDevice == null) return null;
         if (audioDevice.IsCapture)
         {
             switch (audioDevice?.DriverType)

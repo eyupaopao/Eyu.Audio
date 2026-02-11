@@ -139,6 +139,8 @@ public class Aes67Channel : IDisposable
             default:
                 throw new ArgumentException($"not support encoding：{OutputWaveFormat.BitsPerSample}");
         }
+        // 大小端转换：AES67/RFC 要求 L24 为网络字节序（大端），NAudio 输出为小端，需按样本翻转
+        _outputProvider = new PCMSwappingProvider(_outputProvider);
         bytesPerPacket = SamplesPerPacket * _outputProvider.WaveFormat.Channels * (_outputProvider.WaveFormat.BitsPerSample / 8);
     }
 
