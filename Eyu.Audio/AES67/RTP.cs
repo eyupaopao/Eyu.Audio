@@ -89,8 +89,8 @@ public class PcmToRtpConverter
         _samplesPerPacket = samplesPerPacket;
         Ssrc = ssrc;
         _pTPClient = pTPClient;
-        // 计算包间隔时间(纳秒)
-        _packetInterval = new PTPTimestamp((ulong)((double)samplesPerPacket / sampleRate * 1e9d * 0.98));
+        // 计算包间隔时间(纳秒)，使用 1.0 确保与 PTP 对齐，避免接收端因时间戳超前而丢弃
+        _packetInterval = new PTPTimestamp((ulong)((double)samplesPerPacket / sampleRate * 1e9d));
         Initialize();
     }
 
@@ -110,6 +110,10 @@ public class PcmToRtpConverter
         _lastPacketTime = _pTPClient.Timestamp - _packetInterval;
     }
 
+    /// <summary>
+    /// 确定是否可以发送下一包。依据 RTP 时间戳与 PTP 墙钟的对应关系：
+    /// 若 RTP 已落后于墙钟（超时）：尽快发送以跟上节奏；若 RTP 超前于墙钟：应等待。
+    /// </summary>
     public bool EnsureTime()
     {
         var currentTime = _pTPClient.Timestamp;
@@ -119,11 +123,17 @@ public class PcmToRtpConverter
             _lastPacketTime = currentTime - _packetInterval;
             _lastSyncTime = currentTime;
         }
-        if (currentTime < _lastPacketTime + _packetInterval)
+        // 下一包将使用的 RTP 时间戳
+        ulong nextRtpTs = _rtpTimestamp + (ulong)_samplesPerPacket;
+        // 当前 PTP 墙钟对应的期望 RTP 时间戳
+        ulong expectedRtpTs = PTPTimestampToRtpTimestamp(currentTime, (uint)_sampleRate);
+
+        if (nextRtpTs > expectedRtpTs)
         {
-            // 时间未到，不生成包
+            // RTP 超前于墙钟，尚未到发送时机，应等待
             return false;
         }
+        // RTP 落后或与墙钟持平（超时或准时），尽快发送以跟上节奏
         return true;
     }
 
@@ -135,7 +145,6 @@ public class PcmToRtpConverter
     /// <returns>完整的RTP包</returns>
     public byte[] BuildRtpPacket(byte[] payload, int offset, int count)
     {
-        _packetInterval = new PTPTimestamp((ulong)((double)_samplesPerPacket / _sampleRate * 1e9d * 0.992));
         var currentTime = _pTPClient.Timestamp;
         if (payload.Length - offset < count)
         {

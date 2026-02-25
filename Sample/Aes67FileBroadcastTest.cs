@@ -58,7 +58,7 @@ public static class Aes67FileBroadcastTest
         try
         {
             var manager = Aes67ChannelManager.Instance;
-            //manager.SetDefaultDefaultPTimeμs(4000);
+            manager.SetDefaultDefaultPTimeμs(4000);
             var channel = manager.CreateMulticastcastChannel(broadcastName);
             manager.Init(channel, waveFormat, broadcastName);
 
