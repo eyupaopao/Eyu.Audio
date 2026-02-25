@@ -63,12 +63,6 @@ public class PcmToRtpConverter
     // 上次同步时间(纳秒)
     private PTPTimestamp _lastSyncTime;
 
-    // 时间同步间隔(包数)
-    private const int SyncInterval = 100;
-
-    // 已发送包计数，用于定期同步
-    private int _packetCounter;
-
     PTPClient _pTPClient;
 
     // 上次发送RTP包的时间
@@ -134,13 +128,13 @@ public class PcmToRtpConverter
     }
 
     /// <summary>
-    /// 构建RTP包（添加时间检查）
+    /// 构建RTP包。调用前需通过 EnsureTime() 确认发送时机正确。
+    /// 媒体时间戳均匀递增，确保时间到后即刻打包并发送。
     /// </summary>
     /// <param name="payload">音频负载数据</param>
-    /// <returns>完整的RTP包，若时间未到则返回null</returns>
+    /// <returns>完整的RTP包</returns>
     public byte[] BuildRtpPacket(byte[] payload, int offset, int count)
     {
-
         _packetInterval = new PTPTimestamp((ulong)((double)_samplesPerPacket / _sampleRate * 1e9d * 0.992));
         var currentTime = _pTPClient.Timestamp;
         if (payload.Length - offset < count)
@@ -148,18 +142,8 @@ public class PcmToRtpConverter
             count = payload.Length - offset;
         }
 
-        // 定期与PTP时间同步，防止漂移
-        _packetCounter++;
-        if (_packetCounter >= SyncInterval)
-        {
-            SyncWithPTPClient();
-            _packetCounter = 0;
-        }
-        else
-        {
-            // 正常递增时间戳（每个包包含_samplesPerPacket个采样）
-            _rtpTimestamp += (ulong)_samplesPerPacket;
-        }
+        // 媒体时间戳均匀递增（每包增加 _samplesPerPacket 个采样）
+        _rtpTimestamp += (ulong)_samplesPerPacket;
 
         // 更新上次发送时间
         _lastPacketTime = currentTime;
@@ -196,36 +180,14 @@ public class PcmToRtpConverter
     }
 
     /// <summary>
-    /// 与PTPClient时间同步，校正可能的漂移
+    /// 重置媒体时间戳。用于用户控制调整进度（如 seek）时，清空缓存后调用。
     /// </summary>
-    private void SyncWithPTPClient()
+    public void ResetTimestamp()
     {
         var currentTime = _pTPClient.Timestamp;
-        var timeElapsed = currentTime - _lastSyncTime;
-
-        // 计算理论上应该经过的采样数
-        var expectedSamples = timeElapsed.GetTotalNanoseconds() * (_sampleRate / 1e9d);
-        var expectedTimestamp = _rtpTimestamp + (ulong)expectedSamples;
-
-        // 计算实际当前时间对应的RTP时间戳
-        var actualTimestamp = PTPTimestampToRtpTimestamp(currentTime, (uint)_sampleRate);
-
-        // 计算时间差，如果超过阈值则进行校正
-        var timeDiff = (int)(expectedTimestamp > actualTimestamp ? expectedTimestamp - actualTimestamp : actualTimestamp - expectedTimestamp);
-        // 如果差异超过一个包的采样数，则进行同步校正
-        if (timeDiff > _samplesPerPacket)
-        {
-            _rtpTimestamp = actualTimestamp;
-        }
-        else
-        {
-            // 差异不大时，仅轻微调整，避免跳变
-            _rtpTimestamp += (ulong)_samplesPerPacket;
-        }
-
+        _rtpTimestamp = PTPTimestampToRtpTimestamp(currentTime, (uint)_sampleRate);
         _lastSyncTime = currentTime;
-        // 同步时也更新上次包时间，避免时间累积误差
-        _lastPacketTime = currentTime;
+        _lastPacketTime = currentTime - _packetInterval;
     }
 
     static uint NsPerSecond = (uint)1e9;

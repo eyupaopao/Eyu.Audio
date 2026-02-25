@@ -1,4 +1,4 @@
-﻿using Eyu.Audio.Provider;
+using Eyu.Audio.Provider;
 using Eyu.Audio.PTP;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
@@ -30,12 +30,26 @@ public class Aes67Channel : IDisposable
     public int GetPackageCount() {
         return _packets.Count;
     }
+
+    /// <summary>
+    /// 清除缓存。当用户控制调整进度（如 seek）时调用，清空发送队列并重置媒体时间戳。
+    /// </summary>
+    public void ClearCache()
+    {
+        while (_packets.TryDequeue(out _)) { }
+        currentPacket = null;
+        _rtpConverter.ResetTimestamp();
+        _lastSendTime = DateTime.UtcNow;
+    }
     private WaveFormat _inputWaveFormat = null!;
     public WaveFormat OutputWaveFormat { get; set; }
     public uint PTimμs { get; }
 
     // 包间隔(μs)推荐包间隔：48k 125μs,250μs,333μs; 96k:250μs,1000μs,4000μs
     private uint _sendFrameCount;
+    // 上次成功发送包的时间，用于空闲过久时对时
+    private DateTime _lastSendTime = DateTime.UtcNow;
+    private const int IdleSyncThresholdMs = 500;
     private readonly CancellationTokenSource _cts = new CancellationTokenSource();
     private readonly List<IPAddress> localAddresses;
     public readonly string name;
@@ -90,7 +104,7 @@ public class Aes67Channel : IDisposable
         _rtpConverter = new PcmToRtpConverter(
             pTPClient, OutputWaveFormat.SampleRate, OutputWaveFormat.BitsPerSample, OutputWaveFormat.Channels,
             (byte)Aes67Const.DefaultPayloadType,
-            SamplesPerPacket
+            SamplesPerPacket,SessId
         );
     }
     /// <summary>
@@ -135,6 +149,7 @@ public class Aes67Channel : IDisposable
             }
         }
         _rtpConverter.Initialize();
+        _lastSendTime = DateTime.UtcNow;
         SendSdp();
     }
     void BuildProvider()
@@ -270,6 +285,15 @@ public class Aes67Channel : IDisposable
                 {
                     currentPacket = packet;
                 }
+                else
+                {
+                    // 队列空且长时间无包：及时对时，避免恢复发送时时间基准滞后
+                    if ((DateTime.UtcNow - _lastSendTime).TotalMilliseconds > IdleSyncThresholdMs)
+                    {
+                        _rtpConverter.ResetTimestamp();
+                        _lastSendTime = DateTime.UtcNow;
+                    }
+                }
             }
             if (currentPacket != null)
             {
@@ -282,6 +306,7 @@ public class Aes67Channel : IDisposable
                     _udpClients[address].SendAsync(rtpFrame, MulticastEndpoint);
                 }
                 _sendFrameCount++;
+                _lastSendTime = DateTime.UtcNow;
             }
         }
         catch (Exception ex)
