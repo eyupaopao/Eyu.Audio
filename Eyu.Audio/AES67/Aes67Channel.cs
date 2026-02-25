@@ -3,6 +3,7 @@ using Eyu.Audio.PTP;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
@@ -23,11 +24,11 @@ public class Aes67Channel : IDisposable
     private readonly Dictionary<IPAddress, UdpClient> _udpClients = new();
     private readonly PcmToRtpConverter _rtpConverter;
     public readonly IPEndPoint MulticastEndpoint;
-    Channel<byte[]> _packets = Channel.CreateUnbounded<byte[]>();
+    ConcurrentQueue<byte[]> _packets = new();
     private int bytesPerPacket;
     byte[]? currentPacket = null!;
     public int GetPackageCount() {
-        return _packets.Reader.Count;
+        return _packets.Count;
     }
     private WaveFormat _inputWaveFormat = null!;
     public WaveFormat OutputWaveFormat { get; set; }
@@ -43,6 +44,9 @@ public class Aes67Channel : IDisposable
     public uint SessId { get; }
     internal IPAddress MuticastAddress { get; }
     #endregion
+
+    #region constructor
+
     /// <summary>
     /// 构造AES67广播发送器
     /// </summary>
@@ -89,6 +93,32 @@ public class Aes67Channel : IDisposable
             SamplesPerPacket
         );
     }
+    /// <summary>
+    /// 验证AES67所需的参数
+    /// </summary>
+    private void ValidateAes67Parameters(Sdp sdp)
+    {
+        if (!Array.Exists(Aes67Const.SupportedSampleRates, rate => rate == sdp.SampleRate))
+        {
+            throw new ArgumentException($"AES67 is not support sample rate: {sdp.SampleRate}. please use: {string.Join(", ", Aes67Const.SupportedSampleRates)}");
+        }
+
+        // AES67要求支持的编码: L16, L24
+        if (sdp.AudioEncoding != "L16" && sdp.AudioEncoding != "L24")
+        {
+            throw new ArgumentException($"AES67 is not support encoding: {sdp.AudioEncoding}. please use L16 or L24");
+        }
+
+        // 验证ptime (AES67通常使用0.125ms到100ms)
+        if (sdp.PTimems <= 0 || sdp.PTimems > 100)
+        {
+            throw new ArgumentException($"ptime out of range (0.125-100ms): {sdp.PTimems}");
+        }
+    }
+   
+    #endregion
+
+    #region init
 
     internal void Init(WaveFormat inputWaveFormat, string title)
     {
@@ -144,33 +174,33 @@ public class Aes67Channel : IDisposable
         bytesPerPacket = SamplesPerPacket * _outputProvider.WaveFormat.Channels * (_outputProvider.WaveFormat.BitsPerSample / 8);
     }
 
-    /// <summary>
-    /// 验证AES67所需的参数
-    /// </summary>
-    private void ValidateAes67Parameters(Sdp sdp)
+    #endregion
+
+    #region sdp
+
+    public void SetMediaName(string? mediaName)
     {
-        if (!Array.Exists(Aes67Const.SupportedSampleRates, rate => rate == sdp.SampleRate))
+        if (string.IsNullOrEmpty(mediaName)) return;
+        foreach (var sdp in Sdps.Values)
         {
-            throw new ArgumentException($"AES67 is not support sample rate: {sdp.SampleRate}. please use: {string.Join(", ", Aes67Const.SupportedSampleRates)}");
-        }
-
-        // AES67要求支持的编码: L16, L24
-        if (sdp.AudioEncoding != "L16" && sdp.AudioEncoding != "L24")
-        {
-            throw new ArgumentException($"AES67 is not support encoding: {sdp.AudioEncoding}. please use L16 or L24");
-        }
-
-        // 验证ptime (AES67通常使用0.125ms到100ms)
-        if (sdp.PTimems <= 0 || sdp.PTimems > 100)
-        {
-            throw new ArgumentException($"ptime out of range (0.125-100ms): {sdp.PTimems}");
+            sdp.SetTitle(mediaName);
         }
     }
+    private void SendSdp(bool deletion = false)
+    {
+        foreach (var address in _udpClients.Keys)
+        {
+            if (Sdps.TryGetValue(address, out var sdp))
+            {
+                _udpClients[address].SendAsync(sdp.BuildSap(deletion), Aes67Const.SdpMulticastIPEndPoint);
+            }
+        }
+    }
+    #endregion
     public void Write(byte[] bytes, int offset, int count)
     {
         try
         {
-
             if (bytes.Length < offset) return;
             if (bytes.Length - offset < count)
                 count = bytes.Length - offset;
@@ -182,14 +212,6 @@ public class Aes67Channel : IDisposable
         }
     }
 
-    public void SetMediaName(string? mediaName)
-    {
-        if (string.IsNullOrEmpty(mediaName)) return;
-        foreach (var sdp in Sdps.Values)
-        {
-            sdp.SetTitle(mediaName);
-        }
-    }
     void buildFrames()
     {
         // 转换比例
@@ -210,26 +232,17 @@ public class Aes67Channel : IDisposable
             if (len - offset < bytesPerPacket)
             {
                 Array.Copy(outputBuffer, offset, frame, 0, len - offset);
-                _packets.Writer.TryWrite(frame);
+                _packets.Enqueue(frame);
                 break; // 不足一个包，直接写入
             }
             Array.Copy(outputBuffer, offset, frame, 0, bytesPerPacket);
-            _packets.Writer.TryWrite(frame);
+            _packets.Enqueue(frame);
             offset += bytesPerPacket;
         }
     }
 
-    private void SendSdp(bool deletion = false)
-    {
-        foreach (var address in _udpClients.Keys)
-        {
-            if (Sdps.TryGetValue(address, out var sdp))
-            {
-                _udpClients[address].SendAsync(sdp.BuildSap(deletion), Aes67Const.SdpMulticastIPEndPoint);
-            }
-        }
-    }
-    public void SendRtp()
+
+    internal void SendRtp()
     {
         try
         {
@@ -252,7 +265,7 @@ public class Aes67Channel : IDisposable
             // 从转换器获取RTP包并发送
             if (currentPacket == null)
             {
-                var flag = _packets.Reader.TryRead(out var packet);
+                var flag = _packets.TryDequeue(out var packet);
                 if (flag && packet != null && packet.Length > 0)
                 {
                     currentPacket = packet;
