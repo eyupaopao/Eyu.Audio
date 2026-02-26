@@ -15,7 +15,8 @@ using System.Net.Sockets;
 
 
 
-    TestAes67FileBroadcast();
+    // TestAes67FileBroadcast();
+    TestAes67RtpReceiveMonitor();  // 在另一终端运行以监控 RTP 丢包/乱序
 
     // TestPulseLoopbackCaptureToFile();  // Linux: 默认运行环回采集测试，可改为 TestPulseLoopbackCaptureToFile() 保存 WAV
 static void TestAlsaCapture()
@@ -149,6 +150,18 @@ static void TestAes67()
 /// 使用 AudioFileReader 读取音频文件，通过 Aes67ChannelManager/Aes67Channel 广播 PCM（定时器为 HighPrecisionTimer）。
 /// 运行后选择本机 IP，再输入音频文件路径即可。
 /// </summary>
+static void TestAes67RtpReceiveMonitor()
+{
+    Console.WriteLine("RTP 接收监控 - 检测乱序与丢包");
+    Console.WriteLine("默认多播: 239.69.1.1:5004（与 stream.sdp 中 c= 行地址一致即可接收）");
+    Console.WriteLine("输入多播地址（回车用默认）:");
+    var addr = Console.ReadLine()?.Trim();
+    Console.WriteLine("输入端口（回车用 5004）:");
+    var portStr = Console.ReadLine()?.Trim();
+    int port = string.IsNullOrEmpty(portStr) ? 5004 : int.Parse(portStr);
+    Aes67RtpReceiveMonitorTest.Run(string.IsNullOrEmpty(addr) ? null : addr, port);
+}
+
 static void TestAes67FileBroadcast()
 {
     var addrs = Aes67FileBroadcastTest.GetLocalIPv4List();

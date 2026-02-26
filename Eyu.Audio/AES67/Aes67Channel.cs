@@ -265,18 +265,7 @@ public class Aes67Channel : IDisposable
             {
                 _sendFrameCount = 0;
                 SendSdp();
-            }
-            //var flag = _packets.Reader.TryRead(out var packet);
-            //if (flag && packet != null && packet.Length > 0)
-            //{
-            //    var rtpFrame = _rtpConverter.BuildRtpPacket(packet, 0, packet.Length);
-            //    if (rtpFrame == null) return;
-            //    foreach (var address in _udpClients.Keys)
-            //    {
-            //        _udpClients[address].SendAsync(rtpFrame, MulticastEndpoint);
-            //    }
-            //    _sendFrameCount++;
-            //}
+            }  
             // 从转换器获取RTP包并发送
             if (currentPacket == null)
             {

@@ -60,16 +60,14 @@ public class PcmToRtpConverter
     // RTP时间戳
     private ulong _rtpTimestamp;
 
-    // 上次同步时间(纳秒)
-    private PTPTimestamp _lastSyncTime;
 
     PTPClient _pTPClient;
 
     // 上次发送RTP包的时间
-    private PTPTimestamp _lastPacketTime;
+    //private PTPTimestamp _lastPacketTime;
 
     // 计算出的包间隔时间(纳秒)
-    private PTPTimestamp _packetInterval;
+    //private PTPTimestamp _packetInterval;
 
 
     /// <summary>
@@ -90,7 +88,7 @@ public class PcmToRtpConverter
         Ssrc = ssrc;
         _pTPClient = pTPClient;
         // 计算包间隔时间(纳秒)，使用 1.0 确保与 PTP 对齐，避免接收端因时间戳超前而丢弃
-        _packetInterval = new PTPTimestamp((ulong)((double)samplesPerPacket / sampleRate * 1e9d));
+        //_packetInterval = new PTPTimestamp((ulong)((double)samplesPerPacket / sampleRate * 1e9d));
         Initialize();
     }
 
@@ -105,9 +103,8 @@ public class PcmToRtpConverter
         // 初始化RTP时间戳
         var currentTime = _pTPClient.Timestamp;
         _rtpTimestamp = PTPTimestampToRtpTimestamp(currentTime, (uint)_sampleRate);
-        _lastSyncTime = currentTime;
         // 初始化上次发送时间为当前时间减去一个间隔，确保第一个包可以立即发送
-        _lastPacketTime = _pTPClient.Timestamp - _packetInterval;
+        //_lastPacketTime = _pTPClient.Timestamp - _packetInterval;
     }
 
     /// <summary>
@@ -118,11 +115,10 @@ public class PcmToRtpConverter
     {
         var currentTime = _pTPClient.Timestamp;
         // PTP 刚同步时时钟可能回退，导致 currentTime < _lastPacketTime，会一直发不出去。此时按“时钟回退”处理，重置上次发包时间。
-        if (currentTime < _lastPacketTime)
-        {
-            _lastPacketTime = currentTime - _packetInterval;
-            _lastSyncTime = currentTime;
-        }
+        //if (currentTime < _lastPacketTime)
+        //{
+        //    _lastPacketTime = currentTime - _packetInterval;
+        //}
         // 下一包将使用的 RTP 时间戳
         ulong nextRtpTs = _rtpTimestamp + (ulong)_samplesPerPacket;
         // 当前 PTP 墙钟对应的期望 RTP 时间戳
@@ -155,7 +151,7 @@ public class PcmToRtpConverter
         _rtpTimestamp += (ulong)_samplesPerPacket;
 
         // 更新上次发送时间
-        _lastPacketTime = currentTime;
+        //_lastPacketTime = currentTime;
 
         // RTP包头长度 (12字节) + 负载长度
         int packetSize = 12 + count;
@@ -195,8 +191,7 @@ public class PcmToRtpConverter
     {
         var currentTime = _pTPClient.Timestamp;
         _rtpTimestamp = PTPTimestampToRtpTimestamp(currentTime, (uint)_sampleRate);
-        _lastSyncTime = currentTime;
-        _lastPacketTime = currentTime - _packetInterval;
+        //_lastPacketTime = currentTime - _packetInterval;
     }
 
     static uint NsPerSecond = (uint)1e9;
@@ -242,17 +237,6 @@ public class PcmToRtpConverter
             return (uint)IPAddress.HostToNetworkOrder((int)value);
         return value;
     }
-
-    /// <summary>
-    /// 将32位整数转换为网络字节序(大端序)
-    /// </summary>
-    private int NetworkByteOrder(int value)
-    {
-        if (BitConverter.IsLittleEndian)
-            return IPAddress.HostToNetworkOrder(value);
-        return value;
-    }
-
 
 }
 
