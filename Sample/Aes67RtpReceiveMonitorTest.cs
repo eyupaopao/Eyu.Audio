@@ -2,33 +2,40 @@ using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
+using NAudio.Wave;
 
 namespace Sample;
 
 /// <summary>
-/// RTP 接收监控测试：加入多播组接收 RTP 包，检测乱序与丢包。
+/// RTP 接收监控测试：加入多播组接收 RTP 包，检测乱序与丢包，可选解包播放。
 /// 运行前需先启动发送端（如 Aes67FileBroadcastTest），或指定已存在的多播地址/端口。
 /// </summary>
 public static class Aes67RtpReceiveMonitorTest
 {
     /// <summary>
-    /// 启动 RTP 接收监控。按 Ctrl+C 退出。
-    /// </summary>
-    /// <param name="multicastAddress">多播地址，null 时使用 239.69.1.1</param>
-    /// <param name="port">端口，0 时使用 5004</param>
-    /// <param name="localAddress">本机绑定地址，null 时自动选第一个非回环 IPv4</param>
-    /// <summary>
     /// 同步封装，内部调用 RunAsync。
     /// </summary>
-    public static void Run(string? multicastAddress = null, int port = 0, IPAddress? localAddress = null)
+    public static void Run(
+        string? multicastAddress = null,
+        int port = 0,
+        IPAddress? localAddress = null,
+        bool playback = false,
+        int sampleRate = 48000,
+        int bitsPerSample = 24,
+        int channels = 2)
     {
-        RunAsync(multicastAddress, port, localAddress).GetAwaiter().GetResult();
+        RunAsync(multicastAddress, port, localAddress, playback, sampleRate, bitsPerSample, channels)
+            .GetAwaiter().GetResult();
     }
 
     public static async Task RunAsync(
         string? multicastAddress = null,
         int port = 0,
-        IPAddress? localAddress = null)
+        IPAddress? localAddress = null,
+        bool playback = false,
+        int sampleRate = 48000,
+        int bitsPerSample = 24,
+        int channels = 2)
     {
         multicastAddress ??= "239.69.1.1";
         if (port <= 0) port = 5004;
@@ -49,13 +56,16 @@ public static class Aes67RtpReceiveMonitorTest
             return;
         }
 
-        Console.WriteLine($"RTP 接收监控");
+        Console.WriteLine($"RTP 接收监控{(playback ? " + 播放" : "")}");
         Console.WriteLine($"  本机地址: {localAddress}");
         Console.WriteLine($"  多播: {multicastAddress}:{port}");
+        if (playback)
+            Console.WriteLine($"  音频格式: {sampleRate} Hz, {bitsPerSample} bit, {channels} ch");
         Console.WriteLine($"  按 Ctrl+C 退出");
         Console.WriteLine();
 
         var monitor = new RtpMonitor();
+        using var player = playback ? new RtpPlayer(sampleRate, bitsPerSample, channels) : null;
         using var cts = new CancellationTokenSource();
 
         Console.CancelKeyPress += (_, e) =>
@@ -82,7 +92,7 @@ public static class Aes67RtpReceiveMonitorTest
 
             udp.Client.Bind(new IPEndPoint(localAddress, port));
 
-            _ = Task.Run(() => PrintStatsLoop(monitor, cts.Token), cts.Token);
+            _ = Task.Run(() => PrintStatsLoop(monitor, player, cts.Token), cts.Token);
 
             while (!cts.Token.IsCancellationRequested)
             {
@@ -90,6 +100,7 @@ public static class Aes67RtpReceiveMonitorTest
                 {
                     var result = await udp.ReceiveAsync(cts.Token);
                     monitor.ProcessPacket(result.Buffer);
+                    player?.ProcessPacket(result.Buffer);
                 }
                 catch (OperationCanceledException)
                 {
@@ -106,7 +117,7 @@ public static class Aes67RtpReceiveMonitorTest
         monitor.PrintFinalReport();
     }
 
-    static async Task PrintStatsLoop(RtpMonitor monitor, CancellationToken ct)
+    static async Task PrintStatsLoop(RtpMonitor monitor, RtpPlayer? player, CancellationToken ct)
     {
         while (!ct.IsCancellationRequested)
         {
@@ -119,7 +130,101 @@ public static class Aes67RtpReceiveMonitorTest
                 break;
             }
             monitor.PrintPeriodicReport();
+            player?.PrintBufferStatus();
         }
+    }
+}
+
+/// <summary>
+/// RTP 解包播放器：从 RTP 包中提取 PCM 负载，大小端转换后通过 NAudio WaveOutEvent 播放。
+/// AES67 规定 PCM 为网络字节序（大端），NAudio 需要小端，因此对每个样本做字节翻转。
+/// </summary>
+class RtpPlayer : IDisposable
+{
+    private readonly BufferedWaveProvider _buffer;
+    private readonly WaveOutEvent _waveOut;
+    private readonly int _bytesPerSample;
+
+    public RtpPlayer(int sampleRate, int bitsPerSample, int channels)
+    {
+        var format = new WaveFormat(sampleRate, bitsPerSample, channels);
+        _bytesPerSample = bitsPerSample / 8;
+
+        _buffer = new BufferedWaveProvider(format)
+        {
+            BufferDuration = TimeSpan.FromSeconds(2),
+            DiscardOnBufferOverflow = true,
+            ReadFully = true
+        };
+
+        _waveOut = new WaveOutEvent { DesiredLatency = 200 };
+        _waveOut.Init(_buffer);
+        _waveOut.Play();
+        Console.WriteLine("播放器已启动，等待 RTP 数据...");
+    }
+
+    /// <summary>
+    /// 解包单个 RTP 数据包，提取 PCM 负载并送入播放缓冲区。
+    /// </summary>
+    public void ProcessPacket(byte[] data)
+    {
+        if (data == null || data.Length < 12) return;
+
+        int cc = data[0] & 0x0F;
+        int headerSize = 12 + cc * 4;
+
+        bool hasExtension = (data[0] & 0x10) != 0;
+        if (hasExtension)
+        {
+            if (data.Length < headerSize + 4) return;
+            int extLength = (data[headerSize + 2] << 8) | data[headerSize + 3];
+            headerSize += 4 + extLength * 4;
+        }
+
+        if (data.Length <= headerSize) return;
+
+        int payloadLength = data.Length - headerSize;
+        // 对齐到完整样本
+        payloadLength -= payloadLength % _bytesPerSample;
+        if (payloadLength <= 0) return;
+
+        byte[] payload = new byte[payloadLength];
+        Buffer.BlockCopy(data, headerSize, payload, 0, payloadLength);
+
+        SwapEndianness(payload, _bytesPerSample);
+        _buffer.AddSamples(payload, 0, payloadLength);
+    }
+
+    public void PrintBufferStatus()
+    {
+        var buffered = _buffer.BufferedDuration;
+        Console.WriteLine($"  播放缓冲: {buffered.TotalMilliseconds:F0} ms");
+    }
+
+    private static void SwapEndianness(byte[] data, int bytesPerSample)
+    {
+        for (int i = 0; i <= data.Length - bytesPerSample; i += bytesPerSample)
+        {
+            switch (bytesPerSample)
+            {
+                case 2:
+                    (data[i], data[i + 1]) = (data[i + 1], data[i]);
+                    break;
+                case 3:
+                    (data[i], data[i + 2]) = (data[i + 2], data[i]);
+                    break;
+                case 4:
+                    (data[i], data[i + 3]) = (data[i + 3], data[i]);
+                    (data[i + 1], data[i + 2]) = (data[i + 2], data[i + 1]);
+                    break;
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        _waveOut.Stop();
+        _waveOut.Dispose();
     }
 }
 

@@ -57,6 +57,8 @@ public class PcmToRtpConverter
     // 每个RTP包中的采样数
     private readonly int _samplesPerPacket;
 
+    // 发送时间戳提前量（采样数），补偿发包延迟，防止接收端因时间戳滞后而丢弃
+    private readonly int _timestampAdvanceSamples;
     // RTP时间戳
     private ulong _rtpTimestamp;
 
@@ -69,6 +71,9 @@ public class PcmToRtpConverter
     // 计算出的包间隔时间(纳秒)
     //private PTPTimestamp _packetInterval;
 
+    static uint NsPerSecond = (uint)1e9;
+    // 下一包将使用的 RTP 时间戳
+    private ulong nextRtpTs;
 
     /// <summary>
     /// 构造函数
@@ -89,6 +94,7 @@ public class PcmToRtpConverter
         _pTPClient = pTPClient;
         // 计算包间隔时间(纳秒)，使用 1.0 确保与 PTP 对齐，避免接收端因时间戳超前而丢弃
         //_packetInterval = new PTPTimestamp((ulong)((double)samplesPerPacket / sampleRate * 1e9d));
+        _timestampAdvanceSamples = (int)(_sampleRate * 0.0015);
         Initialize();
     }
 
@@ -103,8 +109,7 @@ public class PcmToRtpConverter
         // 初始化RTP时间戳
         var currentTime = _pTPClient.Timestamp;
         _rtpTimestamp = PTPTimestampToRtpTimestamp(currentTime, (uint)_sampleRate);
-        // 初始化上次发送时间为当前时间减去一个间隔，确保第一个包可以立即发送
-        //_lastPacketTime = _pTPClient.Timestamp - _packetInterval;
+        nextRtpTs = _rtpTimestamp + (ulong)_samplesPerPacket;
     }
 
     /// <summary>
@@ -119,8 +124,6 @@ public class PcmToRtpConverter
         //{
         //    _lastPacketTime = currentTime - _packetInterval;
         //}
-        // 下一包将使用的 RTP 时间戳
-        ulong nextRtpTs = _rtpTimestamp + (ulong)_samplesPerPacket;
         // 当前 PTP 墙钟对应的期望 RTP 时间戳
         ulong expectedRtpTs = PTPTimestampToRtpTimestamp(currentTime, (uint)_sampleRate);
 
@@ -149,6 +152,7 @@ public class PcmToRtpConverter
 
         // 媒体时间戳均匀递增（每包增加 _samplesPerPacket 个采样）
         _rtpTimestamp += (ulong)_samplesPerPacket;
+        nextRtpTs = nextRtpTs + (ulong)_samplesPerPacket;
 
         // 更新上次发送时间
         //_lastPacketTime = currentTime;
@@ -169,8 +173,9 @@ public class PcmToRtpConverter
         _sequenceNumber++; // 递增序列号
 
         // 时间戳 (4字节)
-        // RTP时间戳为32位无符号整数，取模防止溢出
-        byte[] timestampBytes = BitConverter.GetBytes(_rtpTimestamp);
+        // RTP时间戳为32位无符号整数，取模防止溢出 
+        // 时间戳 (4字节)，提前 _timestampAdvanceSamples 补偿发包延迟
+        byte[] timestampBytes = BitConverter.GetBytes(_rtpTimestamp + (ulong)_timestampAdvanceSamples);
         if (BitConverter.IsLittleEndian)
         {
             timestampBytes = timestampBytes.Reverse().ToArray();
@@ -191,10 +196,10 @@ public class PcmToRtpConverter
     {
         var currentTime = _pTPClient.Timestamp;
         _rtpTimestamp = PTPTimestampToRtpTimestamp(currentTime, (uint)_sampleRate);
+        nextRtpTs = _rtpTimestamp + (ulong)_samplesPerPacket;
         //_lastPacketTime = currentTime - _packetInterval;
     }
 
-    static uint NsPerSecond = (uint)1e9;
 
     /// <summary>
     /// 纳秒时间戳转换为RTP时间戳

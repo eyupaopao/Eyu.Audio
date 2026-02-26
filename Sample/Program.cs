@@ -159,7 +159,30 @@ static void TestAes67RtpReceiveMonitor()
     Console.WriteLine("输入端口（回车用 5004）:");
     var portStr = Console.ReadLine()?.Trim();
     int port = string.IsNullOrEmpty(portStr) ? 5004 : int.Parse(portStr);
-    Aes67RtpReceiveMonitorTest.Run(string.IsNullOrEmpty(addr) ? null : addr, port);
+
+    Console.WriteLine("是否启用解包播放？(y/N):");
+    var playStr = Console.ReadLine()?.Trim();
+    bool playback = playStr?.Equals("y", StringComparison.OrdinalIgnoreCase) == true;
+
+    int sampleRate = 48000, bitsPerSample = 24, channels = 2;
+    if (playback)
+    {
+        Console.WriteLine($"采样率（回车用 {sampleRate}）:");
+        var sr = Console.ReadLine()?.Trim();
+        if (!string.IsNullOrEmpty(sr) && int.TryParse(sr, out var srVal)) sampleRate = srVal;
+
+        Console.WriteLine($"位深（回车用 {bitsPerSample}）:");
+        var bps = Console.ReadLine()?.Trim();
+        if (!string.IsNullOrEmpty(bps) && int.TryParse(bps, out var bpsVal)) bitsPerSample = bpsVal;
+
+        Console.WriteLine($"声道数（回车用 {channels}）:");
+        var ch = Console.ReadLine()?.Trim();
+        if (!string.IsNullOrEmpty(ch) && int.TryParse(ch, out var chVal)) channels = chVal;
+    }
+
+    Aes67RtpReceiveMonitorTest.Run(
+        string.IsNullOrEmpty(addr) ? null : addr, port,
+        playback: playback, sampleRate: sampleRate, bitsPerSample: bitsPerSample, channels: channels);
 }
 
 static void TestAes67FileBroadcast()
