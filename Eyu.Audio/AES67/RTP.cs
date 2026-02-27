@@ -129,10 +129,22 @@ public class PcmToRtpConverter
 
         if (nextRtpTs > expectedRtpTs)
         {
-            // RTP 超前于墙钟，尚未到发送时机，应等待
+            ulong diff = nextRtpTs - expectedRtpTs;
+            if (diff > (ulong)_sampleRate)
+            {
+                Console.WriteLine($"[EnsureTime] clock jump(ahead): diff={diff} samples ({diff / (double)_sampleRate:F2}s), resync");
+                ResetTimestamp();
+            }
             return false;
         }
-        // RTP 落后或与墙钟持平（超时或准时），尽快发送以跟上节奏
+
+        ulong behind = expectedRtpTs - nextRtpTs;
+        if (behind > (ulong)_sampleRate)
+        {
+            Console.WriteLine($"[EnsureTime] clock jump(behind): behind={behind} samples ({behind / (double)_sampleRate:F2}s), resync");
+            ResetTimestamp();
+        }
+
         return true;
     }
 
@@ -192,6 +204,13 @@ public class PcmToRtpConverter
     /// <summary>
     /// 重置媒体时间戳。用于用户控制调整进度（如 seek）时，清空缓存后调用。
     /// </summary>
+    public void DebugPrintTimeComparison()
+    {
+        var currentTime = _pTPClient.Timestamp;
+        ulong expectedRtpTs = PTPTimestampToRtpTimestamp(currentTime, (uint)_sampleRate);
+        Console.WriteLine($"[EnsureTime] nextRtpTs={nextRtpTs}, expectedRtpTs={expectedRtpTs}, diff={((long)nextRtpTs - (long)expectedRtpTs)}, PTP={currentTime}, IsSynced={_pTPClient.IsSynced}");
+    }
+
     public void ResetTimestamp()
     {
         var currentTime = _pTPClient.Timestamp;

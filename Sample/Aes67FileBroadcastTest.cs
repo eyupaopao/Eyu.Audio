@@ -54,7 +54,22 @@ public static class Aes67FileBroadcastTest
         var waveFormat = audioReader.WaveFormat;
         Console.WriteLine($"格式: {waveFormat.SampleRate} Hz, {waveFormat.BitsPerSample} bit, {waveFormat.Channels} 声道");
 
-        Aes67ChannelManager.Start(localAddress);
+        if (Aes67ChannelManager.Instance == null)
+            Aes67ChannelManager.Start(localAddress);
+
+        // 等待 PTP 同步完成，最多等 10 秒
+        var ptpClient = Eyu.Audio.PTP.PTPClient.Instance;
+        Console.WriteLine("等待 PTP 时钟同步...");
+        var waitStart = DateTime.UtcNow;
+        while (!ptpClient.IsSynced && (DateTime.UtcNow - waitStart).TotalSeconds < 10)
+        {
+            Thread.Sleep(200);
+        }
+        if (ptpClient.IsSynced)
+            Console.WriteLine($"PTP 已同步, Offset={ptpClient.Offset}, Timestamp={ptpClient.Timestamp}");
+        else
+            Console.WriteLine("警告: PTP 未同步，使用本地时钟继续（可能导致时间戳偏差）");
+
         try
         {
             var manager = Aes67ChannelManager.Instance;
@@ -134,17 +149,20 @@ public static class Aes67FileBroadcastTest
 
             readTimer.Dispose();
 
-            // 按已发送音频时长等待，确保缓冲区以实时速率发完再停止
             int total = Volatile.Read(ref totalRead);
             double sentDurationSeconds = total / (double)waveFormat.AverageBytesPerSecond;
-            int waitSeconds = Math.Max(10, (int)Math.Ceiling(sentDurationSeconds) + 10);
-            Console.WriteLine($"已写入 PCM 字节数: {total}（约 {sentDurationSeconds:F1} 秒），等待 {waitSeconds} 秒供缓冲区发送完毕...");
-            for (int remaining = waitSeconds; remaining > 0; remaining--)
+            Console.WriteLine($"已写入 PCM 字节数: {total}（约 {sentDurationSeconds:F1} 秒），等待缓冲区发送完毕...");
+
+            int emptyCount = 0;
+            while (emptyCount < 10)
             {
-                Thread.Sleep(1000);
-                if (remaining % 30 == 0 || remaining <= 5)
-                    Console.WriteLine($"  剩余 {remaining} 秒");
+                Thread.Sleep(200);
+                if (channel.GetPackageCount() == 0)
+                    emptyCount++;
+                else
+                    emptyCount = 0;
             }
+            Console.WriteLine("缓冲区已清空，广播完成。");
             channel.Stop();
         }
         finally

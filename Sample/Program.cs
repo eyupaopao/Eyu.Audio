@@ -203,9 +203,13 @@ static void TestAes67FileBroadcast()
         idx = 1;
     }
     var localIp = IPAddress.Parse(addrs[idx - 1]);
+
+    Aes67ChannelManager.Start(localIp);
+    Console.WriteLine("PTP 时钟同步中... 请在此期间输入音频文件路径。");
+
     Console.WriteLine("输入音频文件路径（或回车使用默认 test.wav）：");
     var path = Console.ReadLine()?.Trim();
-    if (string.IsNullOrEmpty(path)) path = @"D:\User\Music\蔡琴-被遗忘的时光.mp3";
+    if (string.IsNullOrEmpty(path)) path = @"D:\MP3\everything i need.mp3";
     Aes67FileBroadcastTest.BroadcastFromFile(path, "Eyu.Audio File Broadcast", localIp, durationSeconds: 0);
 }
 
