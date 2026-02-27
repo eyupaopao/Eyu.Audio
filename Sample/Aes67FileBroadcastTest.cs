@@ -60,7 +60,7 @@ public static class Aes67FileBroadcastTest
             var manager = Aes67ChannelManager.Instance;
             // manager.SetDefaultDefaultPTimeμs(4000);
             var channel = manager.CreateMulticastcastChannel(broadcastName);
-            manager.Init(channel, waveFormat, broadcastName);
+            channel.Init(waveFormat, broadcastName);
 
             // 生成 stream.sdp 供 ffplay 接收测试
             var sdpPath = Path.Combine(AppContext.BaseDirectory, "stream.sdp");
@@ -145,8 +145,7 @@ public static class Aes67FileBroadcastTest
                 if (remaining % 30 == 0 || remaining <= 5)
                     Console.WriteLine($"  剩余 {remaining} 秒");
             }
-
-            manager.StopChannel(channel);
+            channel.Stop();
         }
         finally
         {
@@ -177,5 +176,29 @@ public static class Aes67FileBroadcastTest
         }
 
         return null;
+    }
+    
+    /// <summary>
+    /// 列出本机可用于 AES67 的 IPv4 地址。
+    /// </summary>
+    public static List<string> GetLocalIPv4List()
+    {
+        var list = new List<string>();
+        foreach (var ni in NetworkInterface.GetAllNetworkInterfaces())
+        {
+            if (ni.OperationalStatus != OperationalStatus.Up)
+                continue;
+
+            foreach (var addr in ni.GetIPProperties().UnicastAddresses)
+            {
+                if (addr.Address.AddressFamily == AddressFamily.InterNetwork
+                    && !IPAddress.IsLoopback(addr.Address))
+                {
+                    list.Add(addr.Address.ToString());
+                }
+            }
+        }
+
+        return list;
     }
 }

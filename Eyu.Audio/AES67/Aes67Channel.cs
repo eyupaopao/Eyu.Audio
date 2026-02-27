@@ -134,7 +134,7 @@ public class Aes67Channel : IDisposable
 
     #region init
 
-    internal void Init(WaveFormat inputWaveFormat, string title)
+    public void Init(WaveFormat inputWaveFormat, string title = "")
     {
         if (_inputWaveFormat == null || !_inputWaveFormat.Equals(inputWaveFormat))
         {
@@ -151,6 +151,7 @@ public class Aes67Channel : IDisposable
         _rtpConverter.Initialize();
         _lastSendTime = DateTime.UtcNow;
         SendSdp();
+        Aes67ChannelManager.Instance.Init(this, inputWaveFormat, title) ;
     }
     void BuildProvider()
     {
@@ -193,7 +194,7 @@ public class Aes67Channel : IDisposable
 
     #region sdp
 
-    internal void SetMediaName(string? mediaName)
+    public void SetMediaName(string? mediaName)
     {
         if (string.IsNullOrEmpty(mediaName)) return;
         foreach (var sdp in Sdps.Values)
@@ -306,6 +307,8 @@ public class Aes67Channel : IDisposable
     public void Stop()
     {
         SendSdp(true);
+        Aes67ChannelManager.Instance.StopChannel(this);
+        Dispose();
     }
     /// <summary>
     /// 释放资源

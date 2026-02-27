@@ -70,14 +70,36 @@ public class Aes67ChannelManager
         foreach (var channel in Instance._channels)
         {
             channel.Stop();
-            channel.Dispose();
         }
-        Instance._channels.Clear();
         Instance.highPrecisionTimer?.Stop();
         Instance.highPrecisionTimer = null;
         Instance = null!;
     }
-
+    /// <summary>
+    /// Stops the specified AES67 channel and releases its associated resources.
+    /// </summary>
+    /// <remarks>If this is the last active channel, the underlying high-precision timer is also stopped and
+    /// released. After calling this method, the specified channel should not be used.</remarks>
+    /// <param name="channel">The AES67 channel to stop and dispose. If null, the method performs no action.</param>
+    internal void StopChannel(Aes67Channel channel)
+    {
+        if (channel == null) return;
+        var key = $"{channel.SessId}{channel.Sdps.Values.First().MessageHash}";
+        if (_existAes67Sdp.ContainsKey(key))
+        {
+            _existAes67Sdp.Remove(key);
+        }
+        if (channel != null)
+        {
+            timmerTick -= channel.SendRtp;
+            _channels.Remove(channel);
+        }
+        if (_channels.Count == 0 && highPrecisionTimer != null)
+        {
+            highPrecisionTimer?.Stop();
+            highPrecisionTimer = null;
+        }
+    }
     Random random = new Random();
     /// <summary>
     /// Retrieves all currently active SDP entries, optionally filtered by device identifier.
@@ -240,39 +262,12 @@ public class Aes67ChannelManager
             throw new NotSupportedException("不支持的采样率");
         Aes67Const.DefaultBitsPerSample = bitsPerSample;
     }
-    /// <summary>
-    /// Stops the specified AES67 channel and releases its associated resources.
-    /// </summary>
-    /// <remarks>If this is the last active channel, the underlying high-precision timer is also stopped and
-    /// released. After calling this method, the specified channel should not be used.</remarks>
-    /// <param name="channel">The AES67 channel to stop and dispose. If null, the method performs no action.</param>
-    public void StopChannel(Aes67Channel channel)
-    {
-        if (channel == null) return;
-        var key = $"{channel.SessId}{channel.Sdps.Values.First().MessageHash}";
-        if (_existAes67Sdp.ContainsKey(key))
-        {
-            _existAes67Sdp.Remove(key);
-        }
-        if (channel != null)
-        {
-            timmerTick -= channel.SendRtp;
-            channel.Stop();
-            channel.Dispose();
-            _channels.Remove(channel);
-        }
-        if (_channels.Count == 0 && highPrecisionTimer != null)
-        {
-            highPrecisionTimer?.Stop();
-            highPrecisionTimer = null;
-        }
-    }
-    DateTime time = DateTime.Now;
+
     private void HandleAes67BroadCast()
     {
         timmerTick?.Invoke();
     }
-    public uint GenSsrc()
+    private uint GenSsrc()
     {
         uint ssrc = 0;
         byte[] ssrcBytes = new byte[4];
@@ -324,9 +319,8 @@ public class Aes67ChannelManager
             PTimeμs);
         return channel;
     }
-    public void Init(Aes67Channel channel, WaveFormat waveFormat, string name = "")
+    internal void Init(Aes67Channel channel, WaveFormat waveFormat, string name = "")
     {
-        channel.Init(waveFormat, name);
         if (highPrecisionTimer == null)
         {
             highPrecisionTimer = new(HandleAes67BroadCast);
@@ -339,7 +333,5 @@ public class Aes67ChannelManager
             timmerTick += channel.SendRtp;
             _channels.Add(channel);
         }
-
     }
-
 }
