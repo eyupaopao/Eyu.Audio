@@ -65,7 +65,7 @@ public class Aes67Channel : IDisposable
     /// 构造AES67广播发送器
     /// </summary>
     /// <param mediaName="sdp">SDP会话描述</param>
-    public Aes67Channel(uint sessId, List<IPAddress> localAddresses, IPAddress muticastAddress, int muticastPort, string name, uint pTimeμs = Aes67Const.DefaultPTimeμs, string? title = null)
+    internal Aes67Channel(uint sessId, List<IPAddress> localAddresses, IPAddress muticastAddress, int muticastPort, string name, uint pTimeμs = Aes67Const.DefaultPTimeμs, string? title = null)
     {
         PTimμs = pTimeμs;
         // 强制统一输出格式。
@@ -193,7 +193,7 @@ public class Aes67Channel : IDisposable
 
     #region sdp
 
-    public void SetMediaName(string? mediaName)
+    internal void SetMediaName(string? mediaName)
     {
         if (string.IsNullOrEmpty(mediaName)) return;
         foreach (var sdp in Sdps.Values)

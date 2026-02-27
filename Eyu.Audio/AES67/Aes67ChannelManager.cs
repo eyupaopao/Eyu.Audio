@@ -15,7 +15,9 @@ using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 namespace Eyu.Audio.Aes67;
-
+/// <summary>
+/// aes67 广播管理器
+/// </summary>
 public class Aes67ChannelManager
 {
     private Dictionary<string, Sdp> _existAes67Sdp = new();
@@ -28,6 +30,14 @@ public class Aes67ChannelManager
     private event Action? timmerTick;
     public static Aes67ChannelManager Instance = null!;
     public uint PTimeμs { get; private set; } = Aes67Const.DefaultPTimeμs;
+    /// <summary>
+    /// Initializes and starts the AES67 channel manager and associated PTP client using the specified local IP
+    /// addresses.
+    /// </summary>
+    /// <remarks>This method must be called before using any channel management features. Calling this method
+    /// multiple times will reinitialize the channel manager and restart the PTP client.</remarks>
+    /// <param name="localAddress">An array of local IP addresses to bind the channel manager to. At least one address should be provided to enable
+    /// proper network operation.</param>
     public static void Start(params IPAddress[] localAddress)
     {
         Instance = new Aes67ChannelManager(localAddress);
@@ -35,6 +45,12 @@ public class Aes67ChannelManager
         Instance.cts = new();
         Instance.ConfigureSdpFinder();
     }
+    /// <summary>
+    /// Stops the current instance and releases all associated resources.
+    /// </summary>
+    /// <remarks>This method cancels ongoing operations, stops all active channels, and disposes of network
+    /// resources. After calling this method, the instance is no longer usable and must be reinitialized before further
+    /// use.</remarks>
     public static void Stop()
     {
         if (Instance == null) return;
@@ -63,6 +79,14 @@ public class Aes67ChannelManager
     }
 
     Random random = new Random();
+    /// <summary>
+    /// Retrieves all currently active SDP entries, optionally filtered by device identifier.
+    /// </summary>
+    /// <remarks>Only SDP entries considered active within the last 20 seconds are returned. This method
+    /// yields results as they are found and may be used in a foreach loop for efficient enumeration.</remarks>
+    /// <param name="devId">The device identifier to filter the SDP entries. If null, returns entries for all devices.</param>
+    /// <returns>An enumerable collection of SDP entries that have been received within the last 20 seconds. The collection is
+    /// filtered by device identifier if specified.</returns>
     public IEnumerable<Sdp> GetExistSdps(string? devId = null)
     {
         foreach (var item in _existAes67Sdp.Values)
@@ -75,6 +99,11 @@ public class Aes67ChannelManager
             }
         }
     }
+    /// <summary>
+    /// Retrieves the existing SDP associated with the specified key, if present.
+    /// </summary>
+    /// <param name="key">The key used to locate the corresponding SDP. Cannot be null.</param>
+    /// <returns>The existing SDP associated with the specified key, or null if no such entry exists.</returns>
     public Sdp? GetExistSdp(string key)
     {
         var flag = _existAes67Sdp.TryGetValue(key, out var value);
@@ -165,7 +194,14 @@ public class Aes67ChannelManager
             }
         });
     }
-
+    /// <summary>
+    /// Sets the default packet time, in microseconds, to the specified value or the next supported value if the
+    /// specified value is not supported.
+    /// </summary>
+    /// <remarks>The method ensures that the packet time is set to a value supported by the system. If the
+    /// specified value is not in the list of supported packet times, the next higher supported value is selected
+    /// automatically.</remarks>
+    /// <param name="pTimeμs">The desired packet time in microseconds. If the value is not supported, the next higher supported value is used.</param>
     public void SetDefaultDefaultPTimeμs(uint pTimeμs)
     {
         if (!Aes67Const.SupportedPTimeμs.Contains(pTimeμs))
@@ -181,19 +217,35 @@ public class Aes67ChannelManager
         }
         PTimeμs = pTimeμs;
     }
+    /// <summary>
+    /// Sets the default bits per sample value for audio processing operations.
+    /// </summary>
+    /// <param name="bitsPerSample">The bits per sample value to set as the default. Must be one of the supported values defined in
+    /// Aes67Const.SupportedBitsPerSample.</param>
+    /// <exception cref="NotSupportedException">Thrown if bitsPerSample is not a supported value.</exception>
     public void SetDefaultBitsPerSample(int bitsPerSample)
     {
         if (!Aes67Const.SupportedBitsPerSample.Contains(bitsPerSample))
             throw new NotSupportedException("不支持的位深");
         Aes67Const.DefaultBitsPerSample = bitsPerSample;
     }
+    /// <summary>
+    /// Sets the default sample rate for audio processing operations.
+    /// </summary>
+    /// <param name="bitsPerSample">The sample rate, in bits per sample, to set as the default. Must be one of the supported sample rates.</param>
+    /// <exception cref="NotSupportedException">Thrown if the specified sample rate is not supported.</exception>
     public void SetDefaultSampleRate(int bitsPerSample)
     {
         if (!Aes67Const.SupportedSampleRates.Contains(bitsPerSample))
             throw new NotSupportedException("不支持的采样率");
         Aes67Const.DefaultBitsPerSample = bitsPerSample;
     }
-
+    /// <summary>
+    /// Stops the specified AES67 channel and releases its associated resources.
+    /// </summary>
+    /// <remarks>If this is the last active channel, the underlying high-precision timer is also stopped and
+    /// released. After calling this method, the specified channel should not be used.</remarks>
+    /// <param name="channel">The AES67 channel to stop and dispose. If null, the method performs no action.</param>
     public void StopChannel(Aes67Channel channel)
     {
         if (channel == null) return;
@@ -236,7 +288,7 @@ public class Aes67ChannelManager
     }
     public IPAddress GetUseAbleMcastAddress()
     {
-        muticastAddressByte[3]++;
+        byte[] muticastAddressByte = [239, 69, 1, 1];
         while (true)
         {
             var multicastAddress = new IPAddress(muticastAddressByte);
@@ -254,7 +306,6 @@ public class Aes67ChannelManager
         }
         return new IPAddress(muticastAddressByte);
     }
-    byte[] muticastAddressByte = [239, 69, 1, 1];
     /// <summary>
     /// 创建广播
     /// </summary>
