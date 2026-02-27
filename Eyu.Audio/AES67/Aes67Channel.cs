@@ -248,7 +248,7 @@ public class Aes67Channel : IDisposable
             if (len - offset < bytesPerPacket)
             {
                 Array.Copy(outputBuffer, offset, frame, 0, len - offset);
-                _packets.Enqueue(frame);
+            _packets.Enqueue(frame);
                 break; // 不足一个包，直接写入
             }
             Array.Copy(outputBuffer, offset, frame, 0, bytesPerPacket);
@@ -293,7 +293,7 @@ public class Aes67Channel : IDisposable
                 currentPacket = null;
                 foreach (var address in _udpClients.Keys)
                 {
-                    _udpClients[address].SendAsync(rtpFrame, MulticastEndpoint);
+                    _udpClients[address].Send(rtpFrame, rtpFrame.Length, MulticastEndpoint);
                 }
                 _sendFrameCount++;
                 _lastSendTime = DateTime.UtcNow;

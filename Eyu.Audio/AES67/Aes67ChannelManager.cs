@@ -324,8 +324,10 @@ public class Aes67ChannelManager
         if (highPrecisionTimer == null)
         {
             highPrecisionTimer = new(HandleAes67BroadCast);
-            // 设置定时器周期为默认的包间隔时间的1/10（单位：ms）
             highPrecisionTimer.SetPeriod(PTimeμs / 10000f);
+            // 绑定到最后一个 CPU 核心，与业务线程隔离
+            int lastCore = Environment.ProcessorCount - 1;
+            highPrecisionTimer.SetCpuAffinity(lastCore);
             highPrecisionTimer.Start();
         }
         if (!_channels.Contains(channel))

@@ -62,6 +62,11 @@ public class PcmToRtpConverter
     // RTP时间戳
     private ulong _rtpTimestamp;
 
+    // 预分配 RTP 包缓冲区，避免每次 BuildRtpPacket 时 GC 分配
+    private byte[] _rtpBuffer = null!;
+    // 预分配的网络序 SSRC（固定不变）
+    private readonly byte[] _ssrcBytes;
+
 
     PTPClient _pTPClient;
 
@@ -95,6 +100,18 @@ public class PcmToRtpConverter
         // 计算包间隔时间(纳秒)，使用 1.0 确保与 PTP 对齐，避免接收端因时间戳超前而丢弃
         //_packetInterval = new PTPTimestamp((ulong)((double)samplesPerPacket / sampleRate * 1e9d));
         _timestampAdvanceSamples = (int)(_sampleRate * 0.001);
+
+        // 预计算网络序 SSRC（不会变）
+        _ssrcBytes = BitConverter.GetBytes(NetworkByteOrder(Ssrc));
+
+        // 预分配 RTP 缓冲区：12 字节头 + 最大载荷
+        int maxPayload = samplesPerPacket * channels * (bitsPerSample / 8);
+        _rtpBuffer = new byte[12 + maxPayload];
+        // 写入固定头字段
+        _rtpBuffer[0] = (RtpVersion << 6) | 0x00;
+        _rtpBuffer[1] = payloadType;
+        Array.Copy(_ssrcBytes, 0, _rtpBuffer, 8, 4);
+
         Initialize();
     }
 
@@ -156,49 +173,37 @@ public class PcmToRtpConverter
     /// <returns>完整的RTP包</returns>
     public byte[] BuildRtpPacket(byte[] payload, int offset, int count)
     {
-        var currentTime = _pTPClient.Timestamp;
         if (payload.Length - offset < count)
-        {
             count = payload.Length - offset;
-        }
 
-        // 媒体时间戳均匀递增（每包增加 _samplesPerPacket 个采样）
         _rtpTimestamp += (ulong)_samplesPerPacket;
-        nextRtpTs = nextRtpTs + (ulong)_samplesPerPacket;
+        nextRtpTs += (ulong)_samplesPerPacket;
 
-        // 更新上次发送时间
-        //_lastPacketTime = currentTime;
+        // 序列号（大端序，直接写入，零分配）
+        ushort seq = _sequenceNumber++;
+        _rtpBuffer[2] = (byte)(seq >> 8);
+        _rtpBuffer[3] = (byte)(seq & 0xFF);
 
-        // RTP包头长度 (12字节) + 负载长度
+        // 时间戳（大端序，直接写入，零分配）
+        uint ts = (uint)(_rtpTimestamp + (ulong)_timestampAdvanceSamples);
+        _rtpBuffer[4] = (byte)(ts >> 24);
+        _rtpBuffer[5] = (byte)(ts >> 16);
+        _rtpBuffer[6] = (byte)(ts >> 8);
+        _rtpBuffer[7] = (byte)(ts & 0xFF);
+
+        // SSRC 已在构造函数中写入 _rtpBuffer[8..11]，无需重复
+
+        // 载荷拷贝
         int packetSize = 12 + count;
-        byte[] rtpPacket = new byte[packetSize];
+        Array.Copy(payload, offset, _rtpBuffer, 12, count);
 
-        // 版本(2位) + 填充(1位) + 扩展(1位) + CSRC计数(4位)
-        rtpPacket[0] = (RtpVersion << 6) | 0x00;
+        // 返回精确大小的切片（仅当载荷不足满包时需要拷贝）
+        if (packetSize == _rtpBuffer.Length)
+            return _rtpBuffer;
 
-        // 标记位(1位) + 负载类型(7位)
-        rtpPacket[1] = _payloadType;
-
-        // 序列号 (2字节)
-        byte[] sequenceBytes = BitConverter.GetBytes(NetworkByteOrder(_sequenceNumber));
-        sequenceBytes.CopyTo(rtpPacket, 2);
-        _sequenceNumber++; // 递增序列号
-
-        // 时间戳 (4字节)
-        // RTP时间戳为32位无符号整数，取模防止溢出 
-        // 时间戳 (4字节)，提前 _timestampAdvanceSamples 补偿发包延迟
-        byte[] timestampBytes = BitConverter.GetBytes(_rtpTimestamp + (ulong)_timestampAdvanceSamples);
-        if (BitConverter.IsLittleEndian)
-        {
-            timestampBytes = timestampBytes.Reverse().ToArray();
-        }
-        Array.Copy(timestampBytes, 4, rtpPacket, 4, 4);
-
-        // SSRC (4字节)
-        byte[] ssrcBytes = BitConverter.GetBytes(NetworkByteOrder(Ssrc));
-        ssrcBytes.CopyTo(rtpPacket, 8);
-        Array.Copy(payload, offset, rtpPacket, 12, count);
-        return rtpPacket;
+        var result = new byte[packetSize];
+        Buffer.BlockCopy(_rtpBuffer, 0, result, 0, packetSize);
+        return result;
     }
 
     /// <summary>

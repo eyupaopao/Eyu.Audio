@@ -2,7 +2,7 @@ using System;
 using System.Threading;
 using Eyu.Audio.PTP;
 
-namespace Eyu.Audio.PTP.Test
+namespace Sample
 {
     public class PTPServerTest
     {

@@ -13,9 +13,9 @@ using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 
+PTPServerTest.Test(args);
 
-
-    TestAes67FileBroadcast();
+    // TestAes67FileBroadcast();
     // TestAes67RtpReceiveMonitor();  // 在另一终端运行以监控 RTP 丢包/乱序
 
     // TestPulseLoopbackCaptureToFile();  // Linux: 默认运行环回采集测试，可改为 TestPulseLoopbackCaptureToFile() 保存 WAV

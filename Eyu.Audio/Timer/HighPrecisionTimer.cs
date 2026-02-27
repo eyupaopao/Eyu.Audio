@@ -1,5 +1,6 @@
-﻿using System;
+using System;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Threading;
 
 namespace Eyu.Audio.Timer;
@@ -17,9 +18,21 @@ public class HighPrecisionTimer : ITimer, IDisposable
     // 跟踪下一个预期的执行时间点
     private long _nextExpectedTick;
 
+    // 绑定的 CPU 核心索引，-1 表示不绑定
+    private int _cpuAffinity = -1;
+
     public HighPrecisionTimer(Action onTick)
     {
         _onTick = onTick ?? throw new ArgumentNullException(nameof(onTick));
+    }
+
+    /// <summary>
+    /// 设置定时器线程绑定的 CPU 核心（从 0 开始）。-1 表示不绑定。
+    /// 必须在 Start() 之前调用。
+    /// </summary>
+    public void SetCpuAffinity(int coreIndex)
+    {
+        _cpuAffinity = coreIndex;
     }
 
     public void SetPeriod(double milliseconds)
@@ -50,8 +63,26 @@ public class HighPrecisionTimer : ITimer, IDisposable
 
     private void Run()
     {
+        // Windows 上绑定 CPU 核心，减少调度抖动
+        if (_cpuAffinity >= 0 && RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            try
+            {
+                var proc = System.Diagnostics.Process.GetCurrentProcess();
+                foreach (ProcessThread pt in proc.Threads)
+                {
+                    if (pt.Id == Environment.CurrentManagedThreadId)
+                    {
+                        pt.ProcessorAffinity = (nint)(1L << _cpuAffinity);
+                        pt.PriorityLevel = ThreadPriorityLevel.TimeCritical;
+                        break;
+                    }
+                }
+            }
+            catch { }
+        }
+
         Stopwatch stopwatch = Stopwatch.StartNew();
-        // 每毫秒tick
         long ticksPerMicrosecond = Stopwatch.Frequency / 1000000;
         // 任务间隔的tick
         long intervalTicks = _periodMicroseconds * ticksPerMicrosecond;

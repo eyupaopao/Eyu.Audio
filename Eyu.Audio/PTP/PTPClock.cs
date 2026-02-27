@@ -17,10 +17,6 @@ namespace Eyu.Audio.PTP
 
         UdpClient ptpClockEvent;
         UdpClient ptpClockGeneral;
-        /// <summary>
-        /// 默认同步模式为两步模式
-        /// </summary>
-        public int SyncType = FlagField.PTP_TWO_STEP;
         // PTP 设置项
         public byte Domain { get; private set; }
         IPAddress domainAddress => IPAddress.Parse(ptpMulticastAddrs[Domain]);
@@ -312,7 +308,7 @@ namespace Eyu.Audio.PTP
 
                 // Check if it's time to send a delay request to calculate network delay
                 var currentTime = getCorrectedTime();
-                if (currentTime.GetTotalNanoseconds() - lastSync > syncIntervalMs)
+                if (currentTime.GetTotalNanoseconds() / 1000_000 - lastSync > syncIntervalMs)
                 {
                     // Send Delay_Req message to calculate network delay
                     var delay_req = PTPGenerator.DelayReq(Domain, ClockId, req_seq++, 0);
@@ -619,7 +615,7 @@ namespace Eyu.Audio.PTP
                     var buffer = ptpClockEvent.Receive(ref remote);
                     if (buffer.Length < 31) continue;
 
-                    var message = new PTPMessage(buffer);
+                    var message = new PTPMessage(buffer, getCorrectedTime());
 
                     // 检查版本和域
                     if (message.Version != 2 || message.Domain != Domain)
