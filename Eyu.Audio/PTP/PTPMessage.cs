@@ -1,4 +1,4 @@
-﻿using Eyu.Audio.Utils;
+using Eyu.Audio.Utils;
 using System;
 
 namespace Eyu.Audio.PTP;
@@ -29,9 +29,9 @@ public class PTPMessage
             var timestamp = ReadPtpTimestamp(message);
             Timestamp = new PTPTimestamp(timestamp[0], timestamp[1]);
         }
-        if (MessageId == MessageType.DELAY_RESP)
+        if (MessageId == MessageType.ANNOUNCE && message.Length >= 64)
         {
-
+            ParseAnnounceFields(message);
         }
     }
     /// <summary>
