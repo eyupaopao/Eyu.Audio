@@ -68,7 +68,7 @@ public class PcmToRtpConverter
     private readonly byte[] _ssrcBytes;
 
 
-    PTPClient _pTPClient;
+    PTPClock _pTPClient;
 
     // 上次发送RTP包的时间
     //private PTPTimestamp _lastPacketTime;
@@ -88,7 +88,7 @@ public class PcmToRtpConverter
     /// <param name="channels">声道数</param>
     /// <param name="bitsPerSample">采样位数</param>
     /// <param name="packageTime">包间隔(ms)</param>
-    public PcmToRtpConverter(PTPClient pTPClient, int sampleRate, int bitsPerSample, int channels, byte payloadType, int samplesPerPacket, uint ssrc = 0)
+    public PcmToRtpConverter(PTPClock pTPClient, int sampleRate, int bitsPerSample, int channels, byte payloadType, int samplesPerPacket, uint ssrc = 0)
     {
         _payloadType = payloadType;
         _sampleRate = sampleRate;

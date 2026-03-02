@@ -20,7 +20,7 @@ namespace Sample
             var server = PTPClock.Instance;
 
             // 初始化服务器 as master with high priority
-            server.Initialize(priority1:130,priority2:130); // Set high priority to ensure master role
+            //server.Initialize(priority1:130,priority2:130); // Set high priority to ensure master role
             
             Console.WriteLine($"Server ID: {server.ClockId}");
             Console.WriteLine($"Domain: {server.Domain}");
@@ -31,7 +31,7 @@ namespace Sample
             Console.WriteLine();
             
             // 启动服务器
-            server.Start();
+            server.Start(priority1: 130, priority2: 130);
             
             Console.WriteLine($"Server started. Is Running: {server.IsRunning}");
             Console.WriteLine($"Current role: {(server.IsMaster ? "Master" : "Slave")}");

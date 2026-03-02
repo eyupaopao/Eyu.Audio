@@ -249,7 +249,7 @@ public class Sdp
         }
         else
         {
-            StartTime = PTPClient.Instance.Timestamp.Seconds;
+            StartTime = PTPClock.Instance.Timestamp.Seconds;
             StopTime = StartTime + Duration;
         }
         SamplesPerFrame = samplesPerPacket;

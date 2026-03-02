@@ -71,7 +71,7 @@ public class Aes67Channel : IDisposable
         // 强制统一输出格式。
         OutputWaveFormat = new WaveFormat(Aes67Const.DefaultSampleRate, Aes67Const.DefaultBitsPerSample, Aes67Const.DefaultChannels);
         SamplesPerPacket = (int)Math.Ceiling(OutputWaveFormat.SampleRate * PTimμs / 1000000f);
-        var pTPClient = PTPClient.Instance;
+        var pTPClient = PTPClock.Instance;
         foreach (var address in localAddresses)
         {
             var sdp = new Sdp(name,

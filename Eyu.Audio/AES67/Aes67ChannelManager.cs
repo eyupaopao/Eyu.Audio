@@ -41,7 +41,7 @@ public class Aes67ChannelManager
     public static void Start(params IPAddress[] localAddress)
     {
         Instance = new Aes67ChannelManager(localAddress);
-        PTPClient.Instance.Start();
+        PTPClock.Instance.Start();
         Instance.cts = new();
         Instance.ConfigureSdpFinder();
     }
@@ -54,7 +54,7 @@ public class Aes67ChannelManager
     public static void Stop()
     {
         if (Instance == null) return;
-        PTPClient.Instance.Stop();
+        PTPClock.Instance.Stop();
         Instance.cts.Cancel();
         foreach (var udp in Instance._sdpFinder)
         {

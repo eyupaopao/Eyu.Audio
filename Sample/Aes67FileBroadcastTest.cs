@@ -58,7 +58,7 @@ public static class Aes67FileBroadcastTest
             Aes67ChannelManager.Start(localAddress);
 
         // 等待 PTP 同步完成，最多等 10 秒
-        var ptpClient = Eyu.Audio.PTP.PTPClient.Instance;
+        var ptpClient = Eyu.Audio.PTP.PTPClock.Instance;
         Console.WriteLine("等待 PTP 时钟同步...");
         var waitStart = DateTime.UtcNow;
         while (!ptpClient.IsSynced && (DateTime.UtcNow - waitStart).TotalSeconds < 10)
